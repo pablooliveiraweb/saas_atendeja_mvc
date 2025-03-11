@@ -1,0 +1,1 @@
+{"version":3,"file":"restaurant-id.decorator.js","sourceRoot":"","sources":["../../../src/auth/decorators/restaurant-id.decorator.ts"],"names":[],"mappings":";;;AAAA,2CAAwE;AAE3D,QAAA,YAAY,GAAG,IAAA,6BAAoB,EAC9C,CAAC,IAAa,EAAE,GAAqB,EAAE,EAAE;IACvC,MAAM,OAAO,GAAG,GAAG,CAAC,YAAY,EAAE,CAAC,UAAU,EAAE,CAAC;IAChD,OAAO,OAAO,CAAC,MAAM,CAAC,YAAY,CAAC;AACrC,CAAC,CACF,CAAC"}

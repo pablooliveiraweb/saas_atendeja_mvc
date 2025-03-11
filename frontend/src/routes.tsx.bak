@@ -1,0 +1,25 @@
+/* eslint-disable react/jsx-no-undef */
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+// Importar páginas
+import Dashboard from './pages/Dashboard';
+import Menu from './pages/Menu';
+import Order from './pages/Order';
+import LandingPage from './pages/LandingPage';
+
+const AppRoutes: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/menu/:slug" element={<Menu />} />
+        <Route path="/order/:id" element={<Order />} />
+        <Route path="*" element={<h1>Página não encontrada</h1>} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
+
+export default AppRoutes; 
