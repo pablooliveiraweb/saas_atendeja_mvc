@@ -20,13 +20,22 @@ const schedule_1 = require("@nestjs/schedule");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const restaurant_entity_1 = require("../restaurants/entities/restaurant.entity");
+const restaurant_service_1 = require("../restaurants/restaurant.service");
+const evolution_api_service_1 = require("../evolution-api/evolution-api.service");
+const config_1 = require("@nestjs/config");
 let AIController = AIController_1 = class AIController {
     conversationService;
     restaurantRepository;
+    restaurantService;
+    evolutionApiService;
+    configService;
     logger = new common_1.Logger(AIController_1.name);
-    constructor(conversationService, restaurantRepository) {
+    constructor(conversationService, restaurantRepository, restaurantService, evolutionApiService, configService) {
         this.conversationService = conversationService;
         this.restaurantRepository = restaurantRepository;
+        this.restaurantService = restaurantService;
+        this.evolutionApiService = evolutionApiService;
+        this.configService = configService;
     }
     async handleWebhook(webhookData) {
         try {
@@ -75,6 +84,16 @@ let AIController = AIController_1 = class AIController {
                         }
                         this.logger.log(`Processando mensagem de ${phoneNumber} para restaurante ${restaurantId}: ${content}`);
                         await this.conversationService.handleIncomingMessage(restaurantId, phoneNumber, content);
+                        if (content.toLowerCase().includes('pedido')) {
+                            const restaurant = await this.restaurantService.findById(restaurantId);
+                            if (restaurant) {
+                                const slug = this.generateSlug(restaurant.name);
+                                const baseUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+                                const fullUrl = `${baseUrl}/menu/${slug}`;
+                                await this.evolutionApiService.sendText(restaurant.evolutionApiInstanceName, phoneNumber, `Acesse o cardápio digital: ${fullUrl}`);
+                                this.logger.log(`Link do cardápio enviado para ${phoneNumber}: ${fullUrl}`);
+                            }
+                        }
                     }
                     else {
                         this.logger.log('Mensagem não é do tipo texto, ignorando');
@@ -118,6 +137,14 @@ let AIController = AIController_1 = class AIController {
         const paddedId = cleanId.padEnd(32, '0');
         return `${paddedId.substring(0, 8)}-${paddedId.substring(8, 12)}-${paddedId.substring(12, 16)}-${paddedId.substring(16, 20)}-${paddedId.substring(20, 32)}`;
     }
+    generateSlug(name) {
+        return name
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\w\s]/g, '')
+            .replace(/\s+/g, '-');
+    }
     async checkAbandonedConversations() {
         try {
             this.logger.log('Verificando conversas abandonadas...');
@@ -147,6 +174,9 @@ exports.AIController = AIController = AIController_1 = __decorate([
     (0, common_1.Controller)('ai'),
     __param(1, (0, typeorm_1.InjectRepository)(restaurant_entity_1.Restaurant)),
     __metadata("design:paramtypes", [conversation_service_1.ConversationService,
-        typeorm_2.Repository])
+        typeorm_2.Repository,
+        restaurant_service_1.RestaurantService,
+        evolution_api_service_1.EvolutionApiService,
+        config_1.ConfigService])
 ], AIController);
 //# sourceMappingURL=ai.controller.js.map

@@ -52,8 +52,10 @@ import {
   useColorModeValue,
   FormErrorMessage,
   Select,
+  Tooltip,
+  FormHelperText,
 } from '@chakra-ui/react';
-import { AddIcon, MinusIcon, DeleteIcon } from '@chakra-ui/icons';
+import { AddIcon, MinusIcon, DeleteIcon, InfoIcon } from '@chakra-ui/icons';
 import { useCart } from '../../contexts/CartContext';
 import { Product } from '../../types/product';
 import { Category } from '../../types/category';
@@ -69,6 +71,28 @@ import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { customersService } from '../../services/customersService';
 import api from '../../services/api';
 
+// Obter a URL base da API
+// Primeiro tenta usar a variável de ambiente, depois tenta obter do servidor atual, ou usa uma URL fixa
+const getBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Tentar obter a URL base do servidor atual
+  const currentUrl = window.location.origin;
+  
+  // Se estamos em localhost:3000 (frontend), a API provavelmente está em localhost:3001 (backend)
+  if (currentUrl.includes('localhost:3000')) {
+    return 'http://localhost:3001';
+  }
+  
+  // Caso contrário, usar a mesma origem
+  return currentUrl;
+};
+
+const API_URL = getBaseUrl();
+console.log('API_URL:', API_URL);
+
 // Tipos para o formulário de cliente
 interface CustomerFormData {
   name: string;
@@ -78,11 +102,84 @@ interface CustomerFormData {
 
 // Tipos para o formulário de entrega
 interface DeliveryFormData {
-  deliveryMethod: 'pickup' | 'delivery' | 'dineIn';
+  deliveryMethod?: 'pickup' | 'delivery' | 'dineIn';
+  paymentMethod?: 'money' | 'pix' | 'credit' | 'debit';
   address?: string;
   complement?: string;
   reference?: string;
+  changeFor?: number; // Para troco em caso de pagamento em dinheiro
 }
+
+// Adicionar função para verificar se o restaurante está aberto
+const isRestaurantOpen = (operatingHoursString?: string): boolean => {
+  if (!operatingHoursString) return false;
+  
+  try {
+    // Tentar converter a string JSON para objeto
+    let operatingHours;
+    try {
+      operatingHours = JSON.parse(operatingHoursString);
+    } catch (error) {
+      console.log('Erro ao analisar horários:', error);
+      return true; // Se não conseguir analisar, consideramos aberto por padrão
+    }
+    
+    // Verificar o formato dos horários
+    if (!operatingHours || typeof operatingHours !== 'object') {
+      console.log('Formato de horários inválido');
+      return true; // Por padrão, consideramos aberto
+    }
+    
+    // Obter o dia da semana atual (0 = domingo, 1 = segunda, etc.)
+    const currentDate = new Date();
+    const dayOfWeek = currentDate.getDay();
+    const currentHour = currentDate.getHours();
+    const currentMinute = currentDate.getMinutes();
+    
+    // Mapear o número do dia para a chave no objeto de horários
+    const dayMap: Record<number, string> = {
+      0: 'sunday',
+      1: 'monday',
+      2: 'tuesday',
+      3: 'wednesday',
+      4: 'thursday',
+      5: 'friday',
+      6: 'saturday'
+    };
+    
+    const dayKey = dayMap[dayOfWeek];
+    const dayConfig = operatingHours[dayKey];
+    
+    // Se não houver configuração para o dia ou o isOpen for false, está fechado
+    if (!dayConfig || dayConfig.isOpen === false) {
+      console.log(`Restaurante fechado no ${dayKey}`);
+      return false;
+    }
+    
+    // Verificar se o horário atual está dentro do horário de funcionamento
+    const openTime = dayConfig.open.split(':');
+    const closeTime = dayConfig.close.split(':');
+    
+    const openHour = parseInt(openTime[0], 10);
+    const openMinute = parseInt(openTime[1], 10);
+    const closeHour = parseInt(closeTime[0], 10);
+    const closeMinute = parseInt(closeTime[1], 10);
+    
+    // Converter horários para minutos para facilitar comparação
+    const currentTimeInMinutes = currentHour * 60 + currentMinute;
+    const openTimeInMinutes = openHour * 60 + openMinute;
+    const closeTimeInMinutes = closeHour * 60 + closeMinute;
+    
+    // Verificar se o horário atual está dentro do período de funcionamento
+    const isOpen = currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
+    console.log(`Verificação de horário: ${dayKey}, atual: ${currentHour}:${currentMinute}, aberto: ${openHour}:${openMinute}, fechado: ${closeHour}:${closeMinute} => ${isOpen ? 'Aberto' : 'Fechado'}`);
+    
+    return isOpen;
+  } catch (error) {
+    console.error('Erro ao verificar horário de funcionamento:', error);
+    return true; // Em caso de erro, consideramos aberto por padrão
+  }
+};
 
 // Componente principal do cardápio digital
 const Menu: React.FC = () => {
@@ -96,6 +193,7 @@ const Menu: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [restaurantInfo, setRestaurantInfo] = useState<any>(null);
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
+  const [isOpen, setIsOpen] = useState(true); // Estado para controlar se o restaurante está aberto
   
   const { 
     items, 
@@ -141,10 +239,12 @@ const Menu: React.FC = () => {
     register: registerDelivery, 
     handleSubmit: handleSubmitDelivery, 
     formState: { errors: deliveryErrors },
-    watch: watchDelivery
+    watch: watchDelivery,
+    setValue: setDeliveryValue
   } = useForm<DeliveryFormData>({
     defaultValues: {
-      deliveryMethod: 'pickup'
+      deliveryMethod: undefined,
+      paymentMethod: undefined
     }
   });
   
@@ -175,6 +275,9 @@ const Menu: React.FC = () => {
   // Estado para armazenar os dados do cliente durante o checkout
   const [customerFormData, setCustomerFormData] = useState<CustomerFormData | null>(null);
   
+  // Estado para armazenar a cor do tema do restaurante
+  const [themeColor, setThemeColor] = useState<string>('#3182ce');
+  
   // Buscar dados do restaurante e produtos
   useEffect(() => {
     const fetchData = async () => {
@@ -186,7 +289,92 @@ const Menu: React.FC = () => {
         // Buscar informações do restaurante pelo slug
         const restaurant = await restaurantService.getBySlug(slug);
         setRestaurantId(restaurant.id);
-        setRestaurantInfo(restaurant);
+        
+        // Verificar se o restaurante possui uma cor personalizada
+        if (restaurant.themeColor) {
+          setThemeColor(restaurant.themeColor);
+          console.log('Cor do tema do restaurante:', restaurant.themeColor);
+        }
+        
+        // Verificar se o restaurante está aberto com base nos horários
+        let restaurantIsOpen = true; // Valor padrão
+        
+        if (restaurant.operatingHours) {
+          try {
+            // Tentar converter para objeto se for string
+            const operatingHours = typeof restaurant.operatingHours === 'string' 
+              ? JSON.parse(restaurant.operatingHours) 
+              : restaurant.operatingHours;
+            
+            if (operatingHours && typeof operatingHours === 'object') {
+              // Obter dia da semana atual (0 = domingo, 1 = segunda, etc.)
+              const currentDate = new Date();
+              const dayOfWeek = currentDate.getDay();
+              const currentHour = currentDate.getHours();
+              const currentMinute = currentDate.getMinutes();
+              
+              // Mapear o número do dia para a chave no objeto de horários
+              const dayMap: Record<number, string> = {
+                0: 'sunday',
+                1: 'monday',
+                2: 'tuesday',
+                3: 'wednesday',
+                4: 'thursday',
+                5: 'friday',
+                6: 'saturday'
+              };
+              
+              const dayKey = dayMap[dayOfWeek];
+              const dayConfig = operatingHours[dayKey];
+              
+              // Se não houver configuração para o dia ou o isOpen for false, está fechado
+              if (!dayConfig || dayConfig.isOpen === false) {
+                restaurantIsOpen = false;
+              } else {
+                // Verificar se o horário atual está dentro do horário de funcionamento
+                const openTime = dayConfig.open.split(':');
+                const closeTime = dayConfig.close.split(':');
+                
+                const openHour = parseInt(openTime[0], 10);
+                const openMinute = parseInt(openTime[1], 10);
+                const closeHour = parseInt(closeTime[0], 10);
+                const closeMinute = parseInt(closeTime[1], 10);
+                
+                // Converter horários para minutos para facilitar comparação
+                const currentTimeInMinutes = currentHour * 60 + currentMinute;
+                const openTimeInMinutes = openHour * 60 + openMinute;
+                const closeTimeInMinutes = closeHour * 60 + closeMinute;
+                
+                // Verificar se o horário atual está dentro do período de funcionamento
+                restaurantIsOpen = currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
+              }
+            }
+          } catch (error) {
+            console.error('Erro ao verificar horário de funcionamento:', error);
+            // Em caso de erro, consideramos aberto por padrão
+            restaurantIsOpen = true;
+          }
+        }
+        
+        setIsOpen(restaurantIsOpen);
+        console.log('Restaurante está aberto:', restaurantIsOpen);
+        
+        // Mapear operatingHours para openingHours para compatibilidade com o MenuHeader
+        const restaurantInfo = {
+          ...restaurant,
+          openingHours: typeof restaurant.operatingHours === 'object' 
+            ? JSON.stringify(restaurant.operatingHours) 
+            : restaurant.operatingHours || '',
+          // As URLs já estão completas graças às modificações no restaurantService
+          logo: restaurant.logo,
+          coverImage: restaurant.coverImage,
+          // Adicionar themeColor ao restaurantInfo
+          themeColor: restaurant.themeColor || themeColor
+        };
+        
+        console.log('RestaurantInfo com URLs completas:', restaurantInfo);
+        
+        setRestaurantInfo(restaurantInfo);
         setCartRestaurantId(restaurant.id);
         
         // Buscar categorias
@@ -208,11 +396,15 @@ const Menu: React.FC = () => {
           const defaultCategoryId = sortedCategories.length > 0 ? sortedCategories[0].id : null;
           
           const processedProducts = activeProducts.map((product: Product) => {
-            if (!product.categoryId && defaultCategoryId) {
-              console.log(`Atribuindo categoria temporária (${defaultCategoryId}) para produto: ${product.name}`);
-              return { ...product, categoryId: defaultCategoryId };
+            let updatedProduct = { ...product };
+            
+            // Atribuir categoria padrão se necessário
+            if (!updatedProduct.categoryId && defaultCategoryId) {
+              console.log(`Atribuindo categoria temporária (${defaultCategoryId}) para produto: ${updatedProduct.name}`);
+              updatedProduct.categoryId = defaultCategoryId;
             }
-            return product;
+            
+            return updatedProduct;
           });
           
           console.log('Produtos processados:', processedProducts.map(p => `${p.name} (categoria: ${p.categoryId})`));
@@ -237,7 +429,7 @@ const Menu: React.FC = () => {
     };
     
     fetchData();
-  }, [slug, setCartRestaurantId, toast]);
+  }, [slug, setCartRestaurantId, toast, themeColor]);
   
   // Adicione este console.log para depuração
   useEffect(() => {
@@ -245,6 +437,15 @@ const Menu: React.FC = () => {
       console.log('Produtos carregados:', products);
     }
   }, [products]);
+  
+  // Adicionar este useEffect para logar o restaurantInfo quando ele mudar
+  useEffect(() => {
+    if (restaurantInfo) {
+      console.log('restaurantInfo completo:', restaurantInfo);
+      console.log('Logo URL:', restaurantInfo.logo);
+      console.log('Cover Image URL:', restaurantInfo.coverImage);
+    }
+  }, [restaurantInfo]);
   
   // Abrir modal de produto
   const handleOpenProductModal = (product: Product) => {
@@ -256,29 +457,57 @@ const Menu: React.FC = () => {
   
   // Adicionar produto ao carrinho
   const handleAddToCart = () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct) {
+      toast({
+        title: 'Erro',
+        description: 'Produto não selecionado',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+    
+    // Verificar se o restaurante está aberto
+    if (!isOpen) {
+      toast({
+        title: 'Restaurante fechado',
+        description: 'O restaurante está fechado no momento. Não é possível realizar pedidos.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
     
     addItem({
       product: selectedProduct,
-      quantity,
-      notes: notes.trim() || undefined
+      quantity: quantity,
+      notes: notes,
     });
     
     toast({
       title: 'Produto adicionado',
-      description: `${selectedProduct.name} foi adicionado à sacola`,
+      description: `${selectedProduct.name} foi adicionado à sacola.`,
       status: 'success',
       duration: 2000,
       isClosable: true,
     });
     
+    // Fechar o modal e resetar os estados
     onProductModalClose();
+    setSelectedProduct(null);
+    setQuantity(1);
+    setNotes('');
   };
   
   // Iniciar processo de checkout
   const handleStartCheckout = () => {
     setCheckoutStep(1);
     onCheckoutModalOpen();
+    setTimeout(() => {
+      onCartDrawerClose();
+    }, 300);
   };
   
   // Verificar se o cliente já existe quando digita o telefone
@@ -407,6 +636,41 @@ const Menu: React.FC = () => {
   // Atualizar processamento do pedido para salvar o cliente
   const handleDeliveryFormSubmitWithSave = async (deliveryData: DeliveryFormData) => {
     try {
+      // Verificar se o método de entrega e o método de pagamento foram selecionados
+      if (!deliveryData.deliveryMethod) {
+        toast({
+          title: 'Método de entrega não selecionado',
+          description: 'Por favor, selecione um método de entrega para continuar.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      if (!deliveryData.paymentMethod) {
+        toast({
+          title: 'Forma de pagamento não selecionada',
+          description: 'Por favor, selecione uma forma de pagamento para continuar.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      // Verificar se o endereço foi preenchido quando o método de entrega é delivery
+      if (deliveryData.deliveryMethod === 'delivery' && !deliveryData.address) {
+        toast({
+          title: 'Endereço não informado',
+          description: 'Por favor, informe o endereço de entrega para continuar.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+      
       // Usar dados do cliente salvos no estado em vez de acessar o formulário
       if (customerFormData) {
         // Salvar dados do cliente
@@ -414,48 +678,6 @@ const Menu: React.FC = () => {
           name: customerFormData.name, 
           phone: customerFormData.phone
         });
-        
-        // Continuar com o processamento normal do pedido
-        await onDeliveryFormSubmit(deliveryData);
-      } else {
-        throw new Error('Dados do cliente não encontrados');
-      }
-    } catch (error) {
-      console.error('Erro ao processar pedido:', error);
-      toast({
-        title: 'Erro ao finalizar pedido',
-        description: 'Não foi possível finalizar seu pedido. Por favor, tente novamente.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-        position: 'top',
-      });
-    }
-  };
-  
-  // Atualizar a função onCustomerFormSubmit para salvar os dados no estado
-  const onCustomerFormSubmit = (data: CustomerFormData) => {
-    setCustomerFormData(data);
-    setCheckoutStep(2);
-    
-    // Formatar o número de telefone para incluir o prefixo 55 se não estiver presente
-    const formattedPhone = data.phone.replace(/\D/g, '');
-    const phoneWithPrefix = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
-    
-    // Atualizar os dados do formulário com o número formatado para uso interno
-    // Mantendo o formato original para exibição no formulário
-    setCustomerFormData({
-      ...data,
-      phoneFormatted: phoneWithPrefix
-    });
-  };
-  
-  // Processar segunda etapa do checkout (método de entrega e endereço)
-  const onDeliveryFormSubmit = async (deliveryData: DeliveryFormData) => {
-    try {
-      if (!customerFormData) {
-        throw new Error('Dados do cliente não encontrados');
-      }
       
       // Preparar itens do pedido
       const orderItems = items.map(item => ({
@@ -469,7 +691,9 @@ const Menu: React.FC = () => {
         customerName: customerFormData.name,
         customerPhone: customerFormData.phoneFormatted || customerFormData.phone.replace(/\D/g, ''),
         items: orderItems,
-        deliveryMethod: deliveryData.deliveryMethod,
+        deliveryMethod: deliveryData.deliveryMethod as 'pickup' | 'delivery' | 'dineIn',
+        paymentMethod: deliveryData.paymentMethod as 'money' | 'pix' | 'credit' | 'debit',
+        changeFor: deliveryData.changeFor,
         deliveryAddress: deliveryData.deliveryMethod === 'delivery' 
           ? `${deliveryData.address}, ${deliveryData.complement || ''} - Ref: ${deliveryData.reference || ''}` 
           : undefined
@@ -528,19 +752,37 @@ const Menu: React.FC = () => {
       // Redirecionar para página de acompanhamento do pedido
       navigate(`/order/${orderId}`);
       
+      } else {
+        throw new Error('Dados do cliente não encontrados');
+      }
     } catch (error) {
-      console.error('Erro ao finalizar pedido:', error);
-      
-      // Mensagem de erro mais detalhada para o usuário
+      console.error('Erro ao processar pedido:', error);
       toast({
         title: 'Erro ao finalizar pedido',
-        description: error instanceof Error ? error.message : 'Não foi possível finalizar seu pedido. Verifique sua conexão e tente novamente.',
+        description: 'Não foi possível finalizar seu pedido. Por favor, tente novamente.',
         status: 'error',
         duration: 5000,
         isClosable: true,
         position: 'top',
       });
     }
+  };
+  
+  // Atualizar a função onCustomerFormSubmit para salvar os dados no estado
+  const onCustomerFormSubmit = (data: CustomerFormData) => {
+    setCustomerFormData(data);
+    setCheckoutStep(2);
+    
+    // Formatar o número de telefone para incluir o prefixo 55 se não estiver presente
+    const formattedPhone = data.phone.replace(/\D/g, '');
+    const phoneWithPrefix = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+    
+    // Atualizar os dados do formulário com o número formatado para uso interno
+    // Mantendo o formato original para exibição no formulário
+    setCustomerFormData({
+      ...data,
+      phoneFormatted: phoneWithPrefix
+    });
   };
   
   // Renderizar produtos por categoria
@@ -608,6 +850,18 @@ const Menu: React.FC = () => {
               product={product} 
               onClick={handleOpenProductModal} 
               onAddToCart={() => {
+                // Verificar se o restaurante está aberto
+                if (!isOpen) {
+                  toast({
+                    title: 'Restaurante fechado',
+                    description: 'O restaurante está fechado no momento. Não é possível realizar pedidos.',
+                    status: 'error',
+                    duration: 5000,
+                    isClosable: true,
+                  });
+                  return;
+                }
+                
                 setSelectedProduct(product);
                 setQuantity(1);
                 addItem({
@@ -622,6 +876,7 @@ const Menu: React.FC = () => {
                   isClosable: true,
                 });
               }}
+              isRestaurantOpen={isOpen}
             />
           </Box>
         ))}
@@ -637,8 +892,40 @@ const Menu: React.FC = () => {
     );
   }
   
+  // Log restaurantInfo antes de renderizar
+  if (restaurantInfo) {
+    console.log('restaurantInfo:', restaurantInfo);
+  }
+  
   return (
     <Box bg={menuBgColor} minH="100vh" display="flex" flexDirection="column" alignItems="center" position="relative">
+      {/* Estilo global para garantir que o menu não seja afetado pelo tema do dashboard */}
+      <style>
+        {`
+          body, html {
+            background-color: white !important;
+            color: #333333 !important;
+          }
+          
+          #root {
+            background-color: white !important;
+            color: #333333 !important;
+          }
+          
+          /* Garantir que componentes Material UI respeitem essas cores */
+          .MuiPaper-root, .MuiBox-root, .MuiContainer-root {
+            color: inherit !important;
+          }
+          
+          /* Personalização da cor do tema */
+          :root {
+            --theme-color: ${themeColor};
+            --theme-color-light: ${themeColor}33;
+            --theme-color-medium: ${themeColor}66;
+          }
+        `}
+      </style>
+      
       {/* Menu Header */}
       {restaurantInfo && (
         <Box width="100%" position="relative" zIndex={1}>
@@ -699,14 +986,20 @@ const Menu: React.FC = () => {
                   py: 1.5,
                   borderRadius: '30px',
                   backgroundColor: 'white',
-                  color: menuTextColor,
+                  color: themeColor,
                   fontWeight: 'medium',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                  transition: 'all 0.2s',
+                  border: `1px solid ${themeColor}30`,
+                  transition: 'all 0.2s ease',
                   '&:hover': {
-                    backgroundColor: '#f5f8fa',
+                    backgroundColor: `${themeColor}10`,
                     transform: 'translateY(-2px)',
                     boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    borderColor: `${themeColor}80`,
+                  },
+                  '&:active': {
+                    backgroundColor: `${themeColor}20`,
+                    transform: 'translateY(0)',
                   },
                   whiteSpace: 'nowrap'
                 }}
@@ -741,7 +1034,7 @@ const Menu: React.FC = () => {
                     transform: 'translateX(-50%)',
                     width: '60px',
                     height: '3px',
-                    backgroundColor: menuAccentColor,
+                    backgroundColor: themeColor,
                     borderRadius: '1.5px'
                   }}
                 >
@@ -807,7 +1100,7 @@ const Menu: React.FC = () => {
               </Text>
             )}
             
-            <Text fontWeight="bold" fontSize="xl" mb={4} color={menuAccentColor}>
+            <Text fontWeight="bold" fontSize="xl" mb={4} color={themeColor}>
               {selectedProduct && new Intl.NumberFormat('pt-BR', { 
                 style: 'currency', 
                 currency: 'BRL' 
@@ -907,18 +1200,18 @@ const Menu: React.FC = () => {
               px={8}
               borderRadius="md"
               boxShadow="sm"
-              bgGradient="linear(to-r, blue.500, blue.600)"
+              bgGradient={`linear(to-r, ${themeColor}, ${themeColor}cc)`}
               color="white"
               height="48px"
               _hover={{ 
                 transform: 'translateY(-2px)',
                 boxShadow: 'md',
-                bgGradient: "linear(to-r, blue.600, blue.700)"
+                bgGradient: `linear(to-r, ${themeColor}cc, ${themeColor})`
               }}
               _active={{
                 transform: 'translateY(0)',
                 boxShadow: 'sm',
-                bgGradient: "linear(to-r, blue.700, blue.800)"
+                bgGradient: `linear(to-r, ${themeColor}dd, ${themeColor}ee)`
               }}
               transition="all 0.2s"
             >
@@ -989,510 +1282,656 @@ const Menu: React.FC = () => {
           </Box>
           
           <Box 
-            borderTop="1px solid" 
-            borderColor="gray.100" 
             p={4}
-            bg="white"
-            width="100%"
+            borderTop="1px solid" 
+            borderColor="gray.200" 
             position="absolute"
             bottom="0"
             left="0"
+            width="100%"
           >
             <VStack width="100%" spacing={4}>
               <Flex justify="space-between" width="100%">
                 <Text fontWeight="bold" color={menuTextColor} fontSize="lg">Total:</Text>
-                <Text fontWeight="bold" color={menuAccentColor} fontSize="lg">
+                <Text fontWeight="bold" color={themeColor} fontSize="lg">
                   {new Intl.NumberFormat('pt-BR', { 
                     style: 'currency', 
                     currency: 'BRL' 
                   }).format(totalPrice)}
                 </Text>
               </Flex>
+              
               <Button 
                 colorScheme="blue" 
                 width="100%" 
-                isDisabled={items.length === 0}
+                isDisabled={items.length === 0 || !isOpen}
                 onClick={() => {
-                  onCartDrawerClose();
+                  if (!isOpen) {
+                    toast({
+                      title: 'Restaurante fechado',
+                      description: 'O restaurante está fechado no momento. Não é possível realizar pedidos.',
+                      status: 'error',
+                      duration: 5000,
+                      isClosable: true,
+                    });
+                    return;
+                  }
                   handleStartCheckout();
                 }}
                 height="48px"
                 fontWeight="bold"
                 boxShadow="sm"
-                bgGradient="linear(to-r, blue.500, blue.600)"
+                bgGradient={`linear(to-r, ${themeColor}, ${themeColor}cc)`}
                 _hover={{ 
                   transform: 'translateY(-2px)',
                   boxShadow: 'md',
-                  bgGradient: "linear(to-r, blue.600, blue.700)"
+                  bgGradient: `linear(to-r, ${themeColor}cc, ${themeColor})`
                 }}
                 _active={{
                   transform: 'translateY(0)',
                   boxShadow: 'sm',
-                  bgGradient: "linear(to-r, blue.700, blue.800)"
+                  bgGradient: `linear(to-r, ${themeColor}dd, ${themeColor}ee)`
                 }}
                 transition="all 0.2s"
               >
                 Finalizar Pedido
               </Button>
+              
+              {!isOpen && items.length > 0 && (
+                <Tooltip label="Restaurante fechado" hasArrow placement="top">
+                  <Box 
+                    as="span" 
+                    width="1rem" 
+                    height="1rem" 
+                    display="inline-block" 
+                    position="absolute" 
+                    right="10px" 
+                    top="15px"
+                    borderRadius="50%"
+                    backgroundColor="red.500"
+                    zIndex={5}
+                    cursor="pointer"
+                  ></Box>
+                </Tooltip>
+              )}
             </VStack>
           </Box>
         </Box>
       </CustomDrawer>
       
       {/* Modal de checkout */}
-      <CustomCheckoutModal isOpen={isCheckoutModalOpen} onClose={onCheckoutModalClose}>
-        <Box 
-          bg="white" 
-          borderRadius="md" 
-          maxWidth="550px" 
-          width="95%" 
-          maxHeight="90vh" 
-          overflow="auto" 
-          position="relative"
-          boxShadow="0 4px 20px rgba(0, 0, 0, 0.3)"
-        >
-          <Flex 
-            justifyContent="space-between" 
-            alignItems="center" 
-            borderBottom="1px solid" 
-            borderColor="gray.200"
-            p={4}
-          >
-            <Heading fontSize="xl" fontWeight="bold" color={menuTextColor}>
-              {checkoutStep === 1 ? 'Seus Dados' : 'Método de Entrega'}
-            </Heading>
-            <IconButton
-              aria-label="Fechar"
-              icon={<Box as="span" fontSize="md">✕</Box>}
-              size="sm"
-              borderRadius="full"
-              bg="gray.100"
-              onClick={onCheckoutModalClose}
-            />
-          </Flex>
-          
-          <Box p={4}>
-            {checkoutStep === 1 ? (
-              <form id="customer-form" onSubmit={handleSubmitCustomer(onCustomerFormSubmit)}>
-                <VStack spacing={4}>
-                  <FormControl isRequired isInvalid={!!customerErrors.name}>
-                    <FormLabel color={menuTextColor}>Nome</FormLabel>
-                    <Input 
-                      id="customer-name"
-                      {...registerCustomer('name', { required: 'Nome é obrigatório' })}
-                      placeholder="Seu nome completo"
-                      bg="white"
-                    />
-                    <FormErrorMessage>
-                      {customerErrors.name?.message}
-                    </FormErrorMessage>
-                  </FormControl>
-                  
-                  <FormControl isRequired isInvalid={!!customerErrors.phone}>
-                    <FormLabel color={menuTextColor}>Telefone</FormLabel>
-                    <Input 
-                      {...registerCustomer('phone', { 
-                        required: 'Telefone é obrigatório',
-                        pattern: {
-                          value: /^\(\d{2}\) \d{5}-\d{4}$/,
-                          message: 'Formato inválido. Use (99) 99999-9999'
-                        }
-                      })}
-                      placeholder="(99) 99999-9999"
-                      bg="white"
-                      onKeyUp={(e) => {
-                        const input = e.target as HTMLInputElement;
-                        let value = input.value.replace(/\D/g, '');
-                        
-                        // Limitar a 11 dígitos (DDD + número)
-                        if (value.length > 11) {
-                          value = value.substring(0, 11);
-                        }
-                        
-                        // Aplicar máscara conforme o usuário digita
-                        if (value.length <= 2) {
-                          input.value = value.length > 0 ? `(${value}` : value;
-                        } else if (value.length <= 7) {
-                          input.value = `(${value.substring(0, 2)}) ${value.substring(2)}`;
-                        } else {
-                          input.value = `(${value.substring(0, 2)}) ${value.substring(2, 7)}-${value.substring(7, 11)}`;
-                        }
-                        
-                        // Verificar cliente existente quando o número estiver completo
-                        if (input.value.match(/^\(\d{2}\) \d{5}-\d{4}$/)) {
-                          checkExistingCustomer(input.value);
-                        }
-                      }}
-                    />
-                    <FormErrorMessage>
-                      {customerErrors.phone?.message}
-                    </FormErrorMessage>
-                  </FormControl>
-                  
-                  {foundCustomer && (
-                    <Box 
-                      p={3} 
-                      bg="blue.50" 
-                      borderRadius="md" 
-                      borderLeft="4px solid" 
-                      borderColor="blue.500"
-                    >
-                      <Text fontSize="sm">
-                        Cliente identificado: <Text as="span" fontWeight="bold">{foundCustomer.name}</Text>
-                      </Text>
-                      {savedCustomer && savedCustomer.orders && savedCustomer.orders.length > 0 && (
-                        <Text fontSize="sm" mt={1}>
-                          {savedCustomer.orders.length} pedido(s) realizado(s) anteriormente
-                        </Text>
-                      )}
-                    </Box>
-                  )}
-                </VStack>
-              </form>
-            ) : (
-              <form id="delivery-form" onSubmit={handleSubmitDelivery(handleDeliveryFormSubmitWithSave)}>
-                <VStack spacing={4} align="stretch">
-                  <FormControl isRequired>
-                    <FormLabel color={menuTextColor}>Método de Entrega</FormLabel>
-                    <RadioGroup>
-                      <Stack direction="column" spacing={4}>
-                        <Radio 
-                          value="pickup" 
-                          {...registerDelivery('deliveryMethod')}
-                          sx={{
-                            borderWidth: "1px",
-                            borderRadius: "md",
-                            p: 3,
-                            _checked: {
-                              bg: "blue.50",
-                              borderColor: "blue.500",
-                              boxShadow: "0 0 0 1px #3182ce"
-                            }
-                          }}
-                        >
-                          <Box>
-                            <Text fontWeight="bold">Retirada no local</Text>
-                            <Text fontSize="sm" color="gray.600">Busque seu pedido no estabelecimento</Text>
-                          </Box>
-                        </Radio>
-                        <Radio 
-                          value="delivery" 
-                          {...registerDelivery('deliveryMethod')}
-                          sx={{
-                            borderWidth: "1px",
-                            borderRadius: "md",
-                            p: 3,
-                            _checked: {
-                              bg: "blue.50",
-                              borderColor: "blue.500",
-                              boxShadow: "0 0 0 1px #3182ce"
-                            }
-                          }}
-                        >
-                          <Box>
-                            <Text fontWeight="bold">Entrega</Text>
-                            <Text fontSize="sm" color="gray.600">Receba seu pedido no endereço informado</Text>
-                          </Box>
-                        </Radio>
-                        <Radio 
-                          value="dineIn" 
-                          {...registerDelivery('deliveryMethod')}
-                          sx={{
-                            borderWidth: "1px",
-                            borderRadius: "md",
-                            p: 3,
-                            _checked: {
-                              bg: "blue.50",
-                              borderColor: "blue.500",
-                              boxShadow: "0 0 0 1px #3182ce"
-                            }
-                          }}
-                        >
-                          <Box>
-                            <Text fontWeight="bold">Consumir no local</Text>
-                            <Text fontSize="sm" color="gray.600">Para consumo no próprio estabelecimento</Text>
-                          </Box>
-                        </Radio>
-                      </Stack>
-                    </RadioGroup>
-                  </FormControl>
-                  
-                  {deliveryMethod === 'delivery' && (
-                    <>
-                      <FormControl mb={3}>
-                        <FormLabel color={menuTextColor}>CEP</FormLabel>
-                        <Flex>
-                          <Input 
-                            placeholder="00000-000"
-                            id="cep-input"
-                            onKeyUp={(e) => {
-                              const input = e.target as HTMLInputElement;
-                              let value = input.value.replace(/\D/g, '');
-                              if (value.length > 0) {
-                                const matches = value.match(new RegExp('.{1,8}'));
-                                value = matches ? matches[0] : value.substring(0, 8);
-                                if (value.length <= 5) {
-                                  input.value = value;
-                                } else {
-                                  input.value = `${value.slice(0, 5)}-${value.slice(5, 8)}`;
-                                }
-                              }
-                            }}
-                            onBlur={async (e) => {
-                              const cep = e.target.value.replace(/\D/g, '');
-                              if (cep.length === 8) {
-                                try {
-                                  const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-                                  const data = await response.json();
-                                  if (!data.erro) {
-                                    const addressInput = document.getElementById('address-input') as HTMLInputElement;
-                                    if (addressInput) {
-                                      // Preservar o que já está no campo de endereço, se preenchido
-                                      const currentAddress = addressInput.value.trim();
-                                      
-                                      // Se o endereço já estiver preenchido, perguntar antes de substituir
-                                      if (currentAddress && currentAddress.length > 0) {
-                                        const confirmed = window.confirm(
-                                          `Deseja substituir o endereço atual pelo encontrado a partir do CEP?\n\nEndereço atual: ${currentAddress}\nEndereço do CEP: ${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`
-                                        );
-                                        
-                                        if (!confirmed) {
-                                          return; // Manter o endereço atual
-                                        }
-                                      }
-                                      
-                                      // Atualizar o endereço com o novo
-                                      addressInput.value = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
-                                      
-                                      // Atualizar o valor no formulário
-                                      const event = new Event('input', { bubbles: true });
-                                      addressInput.dispatchEvent(event);
-                                    }
-                                  }
-                                } catch (error) {
-                                  console.error('Erro ao buscar CEP:', error);
-                                }
-                              }
-                            }}
-                            mr={2}
-                          />
-                          <Button 
-                            onClick={() => {
-                              if (navigator.geolocation) {
-                                navigator.geolocation.getCurrentPosition(
-                                  async (position) => {
-                                    try {
-                                      const { latitude, longitude } = position.coords;
-                                      
-                                      // Primeiro obter endereço usando OpenStreetMap
-                                      const geoResponse = await fetch(
-                                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-                                      );
-                                      const geoData = await geoResponse.json();
-                                      
-                                      // Formatar o endereço sem CEP inicialmente
-                                      let address = '';
-                                      if (geoData.address) {
-                                        address = `${geoData.address.road || ''}, ${geoData.address.house_number || ''}, ${geoData.address.suburb || ''}, ${geoData.address.city || ''} - ${geoData.address.state || ''}`;
-                                      }
-                                      
-                                      // Tentar obter o CEP usando as coordenadas
-                                      let cep = '';
-                                      try {
-                                        // Usar um serviço que retorna CEP baseado em coordenadas
-                                        // Este é um exemplo, pode ser necessário adaptar para um serviço real
-                                        const cepResponse = await fetch(
-                                          `https://geocode.maps.co/reverse?lat=${latitude}&lon=${longitude}&api_key=65fbeef32df4e239254099kex6e53a5`
-                                        );
-                                        const cepData = await cepResponse.json();
-                                        
-                                        // Tentar extrair o CEP/código postal
-                                        if (cepData && cepData.address && cepData.address.postcode) {
-                                          cep = cepData.address.postcode;
-                                          // Atualizar o campo do CEP
-                                          const cepInput = document.getElementById('cep-input') as HTMLInputElement;
-                                          if (cepInput) {
-                                            // Formatar o CEP (se for um CEP brasileiro)
-                                            const cepFormatted = cep.replace(/(\d{5})(\d{3})/, "$1-$2");
-                                            cepInput.value = cepFormatted;
-                                            
-                                            // Disparar evento para atualizar o formulário
-                                            const event = new Event('input', { bubbles: true });
-                                            cepInput.dispatchEvent(event);
-                                          }
-                                        }
-                                      } catch (cepError) {
-                                        console.error('Erro ao buscar CEP pelas coordenadas:', cepError);
-                                      }
-                                      
-                                      // Atualizar campo de endereço
-                                      const addressInput = document.getElementById('address-input') as HTMLInputElement;
-                                      if (addressInput) {
-                                        addressInput.value = address;
-                                        
-                                        // Atualizar o valor no formulário
-                                        const event = new Event('input', { bubbles: true });
-                                        addressInput.dispatchEvent(event);
-                                      }
-                                    } catch (error) {
-                                      console.error('Erro ao obter localização:', error);
-                                      toast({
-                                        title: 'Erro',
-                                        description: 'Não foi possível obter sua localização atual.',
-                                        status: 'error',
-                                        duration: 3000,
-                                        isClosable: true,
-                                      });
-                                    }
-                                  },
-                                  (error) => {
-                                    console.error('Erro de geolocalização:', error);
-                                    toast({
-                                      title: 'Erro',
-                                      description: 'Não foi possível acessar sua localização.',
-                                      status: 'error',
-                                      duration: 3000,
-                                      isClosable: true,
-                                    });
-                                  }
-                                );
-                              } else {
-                                toast({
-                                  title: 'Não suportado',
-                                  description: 'Seu navegador não suporta geolocalização.',
-                                  status: 'error',
-                                  duration: 3000,
-                                  isClosable: true,
-                                });
-                              }
-                            }}
-                            colorScheme="blue"
-                          >
-                            Usar localização
-                          </Button>
-                        </Flex>
-                      </FormControl>
-                      
-                      <FormControl isRequired isInvalid={!!deliveryErrors.address}>
-                        <FormLabel color={menuTextColor}>Endereço</FormLabel>
-                        <Input 
-                          id="address-input"
-                          {...registerDelivery('address', { 
-                            required: 'Endereço é obrigatório para entrega' 
-                          })}
-                          placeholder="Rua, número, bairro"
-                        />
-                        <FormErrorMessage>
-                          {deliveryErrors.address?.message}
-                        </FormErrorMessage>
-                      </FormControl>
-                      
-                      <FormControl>
-                        <FormLabel color={menuTextColor}>Complemento</FormLabel>
-                        <Input 
-                          {...registerDelivery('complement')}
-                          placeholder="Apto, bloco, etc."
-                        />
-                      </FormControl>
-                      
-                      <FormControl>
-                        <FormLabel color={menuTextColor}>Ponto de referência</FormLabel>
-                        <Input 
-                          {...registerDelivery('reference')}
-                          placeholder="Próximo a..."
-                        />
-                      </FormControl>
-                    </>
-                  )}
-                </VStack>
-              </form>
-            )}
-          </Box>
-          
-          <Flex 
-            borderTop="1px solid" 
-            borderColor="gray.100" 
-            p={4} 
-            justifyContent="flex-end"
-            width="100%"
-          >
-            <Button 
-              variant="outline" 
-              mr={3} 
-              onClick={() => {
-                if (checkoutStep === 1) {
-                  onCheckoutModalClose();
-                } else {
-                  setCheckoutStep(1);
-                }
-              }}
-              color={menuTextColor}
-              height="48px"
-              px={6}
-              fontSize="md"
-              fontWeight="medium"
-              borderRadius="md"
-              borderColor="gray.300"
-              _hover={{ bg: 'gray.100' }}
-            >
-              {checkoutStep === 1 ? 'Cancelar' : 'Voltar'}
-            </Button>
-            
-            {checkoutStep === 1 ? (
-              <Button 
-                colorScheme="blue" 
+      <CustomCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={onCheckoutModalClose}
+        title={checkoutStep === 1 ? "Dados do Cliente" : "Finalizar Pedido"}
+      >
+        {checkoutStep === 1 ? (
+          <form onSubmit={handleSubmitCustomer(onCustomerFormSubmit)}>
+            <VStack spacing={4}>
+              <FormControl isInvalid={!!customerErrors.name}>
+                <FormLabel>Nome</FormLabel>
+                <Input 
+                  {...registerCustomer('name', { required: 'Nome é obrigatório' })}
+                  placeholder="Seu nome completo"
+                />
+                <FormErrorMessage>
+                  {customerErrors.name?.message}
+                </FormErrorMessage>
+              </FormControl>
+              
+              <FormControl isInvalid={!!customerErrors.phone}>
+                <FormLabel>Telefone</FormLabel>
+                <Input 
+                  {...registerCustomer('phone', { 
+                    required: 'Telefone é obrigatório',
+                    pattern: {
+                      value: /^\d{10,11}$/,
+                      message: 'Telefone inválido'
+                    }
+                  })}
+                  placeholder="(00) 00000-0000"
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    e.target.value = value;
+                    if (value.length >= 10) {
+                      checkExistingCustomer(value);
+                    }
+                  }}
+                />
+                <FormErrorMessage>
+                  {customerErrors.phone?.message}
+                </FormErrorMessage>
+              </FormControl>
+              
+              <Button
+                colorScheme="blue"
+                width="100%"
                 type="submit"
-                form="customer-form"
                 height="48px"
-                px={8}
-                fontSize="md"
                 fontWeight="bold"
-                borderRadius="md"
-                boxShadow="sm"
-                bgGradient="linear(to-r, blue.500, blue.600)"
-                _hover={{ 
+                bgGradient={`linear(to-r, ${themeColor}, ${themeColor}cc)`}
+                _hover={{
                   transform: 'translateY(-2px)',
                   boxShadow: 'md',
-                  bgGradient: "linear(to-r, blue.600, blue.700)"
+                  bgGradient: `linear(to-r, ${themeColor}cc, ${themeColor})`
                 }}
                 _active={{
                   transform: 'translateY(0)',
                   boxShadow: 'sm',
-                  bgGradient: "linear(to-r, blue.700, blue.800)"
+                  bgGradient: `linear(to-r, ${themeColor}dd, ${themeColor}ee)`
                 }}
                 transition="all 0.2s"
               >
                 Continuar
               </Button>
-            ) : (
+            </VStack>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmitDelivery(handleDeliveryFormSubmitWithSave)}>
+            <VStack spacing={4}>
+              <FormControl>
+                <FormLabel fontWeight="bold">Método de Entrega</FormLabel>
+                <Flex
+                  flexDirection="row"
+                  width="100%"
+                  mb={4}
+                  justifyContent="space-between"
+                >
+                  {/* Opção Retirar no Local */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('deliveryMethod') === 'pickup') {
+                        setDeliveryValue('deliveryMethod', undefined);
+                      } else {
+                        setDeliveryValue('deliveryMethod', 'pickup');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('deliveryMethod') === 'pickup' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('deliveryMethod') === 'pickup' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width="calc(33.33% - 8px)"
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('deliveryMethod') === 'pickup' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('deliveryMethod') === 'pickup' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">🏬 Retirar no Local</Text>
+                    </Flex>
+                  </Box>
+
+                  {/* Opção Entrega */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('deliveryMethod') === 'delivery') {
+                        setDeliveryValue('deliveryMethod', undefined);
+                      } else {
+                        setDeliveryValue('deliveryMethod', 'delivery');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('deliveryMethod') === 'delivery' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('deliveryMethod') === 'delivery' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width="calc(33.33% - 8px)"
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('deliveryMethod') === 'delivery' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('deliveryMethod') === 'delivery' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">🚚 Entrega</Text>
+                    </Flex>
+                  </Box>
+
+                  {/* Opção Consumir no Local */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('deliveryMethod') === 'dineIn') {
+                        setDeliveryValue('deliveryMethod', undefined);
+                      } else {
+                        setDeliveryValue('deliveryMethod', 'dineIn');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('deliveryMethod') === 'dineIn' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('deliveryMethod') === 'dineIn' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width="calc(33.33% - 8px)"
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('deliveryMethod') === 'dineIn' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('deliveryMethod') === 'dineIn' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">🍽️ Consumir no Local</Text>
+                    </Flex>
+                  </Box>
+                </Flex>
+                {!watchDelivery('deliveryMethod') && (
+                  <FormHelperText color="red.500">
+                    Selecione um método de entrega
+                  </FormHelperText>
+                )}
+              </FormControl>
+
+              {watchDelivery('deliveryMethod') === 'delivery' && (
+                <Box 
+                  p={4} 
+                  borderWidth="1px" 
+                  borderColor="gray.200" 
+                  borderRadius="md" 
+                  bg="gray.50"
+                  mt={3}
+                  width="100%"
+                  maxHeight="300px"
+                  overflowY="auto"
+                  sx={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: `${themeColor} transparent`,
+                    '&::-webkit-scrollbar': {
+                      width: '8px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      background: 'transparent',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      background: themeColor,
+                      borderRadius: '4px',
+                    },
+                  }}
+                >
+                  <FormControl isInvalid={!!deliveryErrors.address} mb={4}>
+                    <FormLabel>Endereço</FormLabel>
+                      <Input 
+                      {...registerDelivery('address', { 
+                        required: 'Endereço é obrigatório para entrega' 
+                      })}
+                      placeholder="Rua, número, bairro"
+                      bg="white"
+                    />
+                    <FormErrorMessage>
+                      {deliveryErrors.address?.message}
+                    </FormErrorMessage>
+                  </FormControl>
+                  
+                  <FormControl mb={4}>
+                    <FormLabel>Complemento</FormLabel>
+                    <Input 
+                      {...registerDelivery('complement')}
+                      placeholder="Apartamento, bloco, etc."
+                      bg="white"
+                    />
+                  </FormControl>
+                  
+                  <FormControl>
+                    <FormLabel>Ponto de Referência</FormLabel>
+                    <Input 
+                      {...registerDelivery('reference')}
+                      placeholder="Próximo a..."
+                      bg="white"
+                    />
+                  </FormControl>
+                </Box>
+              )}
+
+              <FormControl mt={4}>
+                <FormLabel fontWeight="bold">Forma de Pagamento</FormLabel>
+                <Flex 
+                  flexWrap="wrap" 
+                  gap={3} 
+                  justifyContent="space-between"
+                  position="relative"
+                >
+                  {/* Opção PIX */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('paymentMethod') === 'pix') {
+                        setDeliveryValue('paymentMethod', undefined);
+                      } else {
+                        setDeliveryValue('paymentMethod', 'pix');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('paymentMethod') === 'pix' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('paymentMethod') === 'pix' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width={{ base: "100%", sm: "48%" }}
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('paymentMethod') === 'pix' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('paymentMethod') === 'pix' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">💸 PIX</Text>
+                    </Flex>
+                  </Box>
+
+                  {/* Opção Cartão de Crédito */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('paymentMethod') === 'credit') {
+                        setDeliveryValue('paymentMethod', undefined);
+                      } else {
+                        setDeliveryValue('paymentMethod', 'credit');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('paymentMethod') === 'credit' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('paymentMethod') === 'credit' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width={{ base: "100%", sm: "48%" }}
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('paymentMethod') === 'credit' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('paymentMethod') === 'credit' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">💳 Cartão de Crédito</Text>
+                    </Flex>
+                  </Box>
+
+                  {/* Opção Cartão de Débito */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('paymentMethod') === 'debit') {
+                        setDeliveryValue('paymentMethod', undefined);
+                      } else {
+                        setDeliveryValue('paymentMethod', 'debit');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('paymentMethod') === 'debit' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('paymentMethod') === 'debit' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width={{ base: "100%", sm: "48%" }}
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('paymentMethod') === 'debit' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('paymentMethod') === 'debit' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">💳 Cartão de Débito</Text>
+                    </Flex>
+                  </Box>
+
+                  {/* Opção Dinheiro */}
+                  <Box 
+                    onClick={() => {
+                      if (watchDelivery('paymentMethod') === 'money') {
+                        setDeliveryValue('paymentMethod', undefined);
+                      } else {
+                        setDeliveryValue('paymentMethod', 'money');
+                      }
+                    }}
+                    cursor="pointer"
+                    borderWidth="2px"
+                    borderRadius="md"
+                    borderColor={watchDelivery('paymentMethod') === 'money' ? themeColor : 'gray.200'}
+                    bg={watchDelivery('paymentMethod') === 'money' ? `${themeColor}10` : 'white'}
+                    p={3}
+                    transition="all 0.2s"
+                    width={{ base: "100%", sm: "48%" }}
+                    position="relative"
+                    _hover={{
+                      borderColor: themeColor,
+                      bg: `${themeColor}05`
+                    }}
+                  >
+                    <Flex align="center" justify="center" width="100%">
+                      <Box 
+                        borderRadius="full" 
+                        borderWidth="2px" 
+                        borderColor={watchDelivery('paymentMethod') === 'money' ? themeColor : 'gray.300'}
+                        w="20px" 
+                        h="20px" 
+                        mr={2}
+                        position="relative"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexShrink={0}
+                      >
+                        {watchDelivery('paymentMethod') === 'money' && (
+                          <Box 
+                            w="10px" 
+                            h="10px" 
+                            borderRadius="full" 
+                            bg={themeColor} 
+                          />
+                        )}
+                      </Box>
+                      <Text fontWeight="medium" fontSize="sm">💵 Dinheiro</Text>
+                    </Flex>
+                  </Box>
+                </Flex>
+                {!watchDelivery('paymentMethod') && (
+                  <FormHelperText color="red.500">
+                    Selecione uma forma de pagamento
+                  </FormHelperText>
+                )}
+              </FormControl>
+
+              {watchDelivery('paymentMethod') === 'money' && (
+                <Box 
+                  p={4} 
+                  borderWidth="1px" 
+                  borderColor="gray.200" 
+                  borderRadius="md" 
+                  bg="gray.50"
+                  mt={3}
+                  width="100%"
+                  sx={{
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: `${themeColor} transparent`,
+                    '&::-webkit-scrollbar': {
+                      width: '8px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      background: 'transparent',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      background: themeColor,
+                      borderRadius: '4px',
+                    },
+                  }}
+                >
+                  <FormControl>
+                    <FormLabel>Troco para quanto?</FormLabel>
+                    <NumberInput min={0}>
+                      <NumberInputField 
+                        {...registerDelivery('changeFor')}
+                        placeholder="0,00"
+                        bg="white"
+                      />
+                    </NumberInput>
+                    <FormHelperText>Deixe em branco se não precisar de troco</FormHelperText>
+                  </FormControl>
+                </Box>
+              )}
+
               <Button 
                 colorScheme="blue" 
+                width="100%"
                 type="submit"
-                form="delivery-form"
                 height="48px"
-                px={8}
-                fontSize="md"
                 fontWeight="bold"
-                borderRadius="md"
-                boxShadow="sm"
-                bgGradient="linear(to-r, blue.500, blue.600)"
+                bgGradient={`linear(to-r, ${themeColor}, ${themeColor}cc)`}
                 _hover={{ 
                   transform: 'translateY(-2px)',
                   boxShadow: 'md',
-                  bgGradient: "linear(to-r, blue.600, blue.700)"
+                  bgGradient: `linear(to-r, ${themeColor}cc, ${themeColor})`
                 }}
                 _active={{
                   transform: 'translateY(0)',
                   boxShadow: 'sm',
-                  bgGradient: "linear(to-r, blue.700, blue.800)"
+                  bgGradient: `linear(to-r, ${themeColor}dd, ${themeColor}ee)`
                 }}
                 transition="all 0.2s"
+                isDisabled={!watchDelivery('deliveryMethod') || !watchDelivery('paymentMethod')}
               >
                 Finalizar Pedido
               </Button>
-            )}
-          </Flex>
-        </Box>
+            </VStack>
+          </form>
+        )}
       </CustomCheckoutModal>
 
       {/* Botão do carrinho fixo */}
@@ -1512,9 +1951,11 @@ const Menu: React.FC = () => {
           sx={{
             px: 6,
             py: 3,
+            backgroundColor: themeColor,
             '&:hover': {
               transform: 'translateY(-2px)',
-              boxShadow: '0 6px 16px rgba(0,0,0,0.2)'
+              boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
+              backgroundColor: `${themeColor}e0`
             },
             transition: 'all 0.2s ease'
           }}
@@ -1634,13 +2075,24 @@ const CustomDrawer = ({
 const CustomCheckoutModal = ({ 
   isOpen,
   onClose,
+  title,
   children
 }: {
   isOpen: boolean;
   onClose: () => void;
+  title: string;
   children: React.ReactNode;
 }) => {
   if (!isOpen) return null;
+  
+  // Definir uma cor padrão para o tema
+  const modalThemeColor = '#3182ce'; // Azul padrão do Chakra UI
+  
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    // Impedir que cliques na modal fechem ela
+    e.stopPropagation();
+    onClose();
+  };
   
   return createPortal(
     <div
@@ -1655,9 +2107,9 @@ const CustomCheckoutModal = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 999999, // Z-index extremamente alto
+        zIndex: 999999,
       }}
-      onClick={onClose}
+      onClick={handleOverlayClick}
     >
       <div 
         style={{
@@ -1665,7 +2117,11 @@ const CustomCheckoutModal = ({
           zIndex: 1000000,
           width: '95%',
           maxWidth: '550px',
+          maxHeight: '90vh',
           animation: 'fadeInScale 0.2s ease-out forwards',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1677,7 +2133,46 @@ const CustomCheckoutModal = ({
             }
           `}
         </style>
-        {children}
+        <Box 
+          position="relative"
+          p={6} 
+          borderRadius="lg"
+          maxH="90vh"
+          overflowY="auto"
+          sx={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${modalThemeColor} transparent`,
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: 'transparent',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: modalThemeColor,
+              borderRadius: '4px',
+            },
+          }}
+        >
+          <IconButton
+            aria-label="Fechar"
+            icon={<Box as="span" fontSize="lg" fontWeight="bold">✕</Box>}
+            position="absolute"
+            right="10px"
+            top="10px"
+            size="sm"
+            borderRadius="full"
+            bg="gray.100"
+            onClick={onClose}
+            zIndex={2}
+          />
+          
+          <Heading size="lg" mb={6} mt={2}>
+            {title}
+          </Heading>
+
+          {children}
+        </Box>
       </div>
     </div>,
     document.body

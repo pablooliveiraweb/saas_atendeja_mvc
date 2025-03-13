@@ -36,5 +36,6 @@ export declare class EvolutionApiService {
     getQrCode(instanceName: string): Promise<any>;
     fetchInstances(instanceName?: string): Promise<any>;
     configureWebhook(instanceName: string, webhookUrl?: string, events?: string[]): Promise<any>;
+    sendButton(url: string, payload: any): Promise<any>;
 }
 export {};

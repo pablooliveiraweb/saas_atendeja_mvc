@@ -31,16 +31,26 @@ export class PublicRestaurantController {
     // Normalizar o slug recebido
     const normalizedInputSlug = slug.toLowerCase();
     
-    // Buscar todos os restaurantes
-    const restaurants = await this.restaurantRepository.find();
-    
-    // Encontrar o restaurante cujo nome normalizado corresponde ao slug
-    const restaurant = restaurants.find(r => {
-      const restaurantSlug = normalizeText(r.name);
-      return restaurantSlug === normalizedInputSlug;
+    // Buscar restaurante pelo slug
+    const restaurant = await this.restaurantRepository.findOne({ 
+      where: { slug: normalizedInputSlug } 
     });
     
+    // Se não encontrar pelo slug exato, tentar buscar pelo nome normalizado (compatibilidade)
     if (!restaurant) {
+      // Buscar todos os restaurantes
+      const restaurants = await this.restaurantRepository.find();
+      
+      // Encontrar o restaurante cujo nome normalizado corresponde ao slug
+      const restaurantByName = restaurants.find(r => {
+        const restaurantSlug = normalizeText(r.name);
+        return restaurantSlug === normalizedInputSlug;
+      });
+      
+      if (restaurantByName) {
+        return restaurantByName;
+      }
+      
       throw new NotFoundException(`Restaurant with slug ${slug} not found`);
     }
     

@@ -2,18 +2,61 @@ import api from './api';
 import { Product } from '../types/product';
 import { Category } from '../types/category';
 
-const API_URL = process.env.REACT_APP_API_URL;
+// Obter a URL base da API
+// Primeiro tenta usar a variável de ambiente, depois tenta obter do servidor atual, ou usa uma URL fixa
+const getBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Tentar obter a URL base do servidor atual
+  const currentUrl = window.location.origin;
+  
+  // Se estamos em localhost:3000 (frontend), a API provavelmente está em localhost:3001 (backend)
+  if (currentUrl.includes('localhost:3000')) {
+    return 'http://localhost:3001';
+  }
+  
+  // Caso contrário, usar a mesma origem
+  return currentUrl;
+};
+
+const API_URL = getBaseUrl();
+console.log('API_URL em menuService:', API_URL);
+
+// Função para garantir que a URL da imagem tenha o caminho completo
+const getFullImageUrl = (path: string | undefined): string | undefined => {
+  if (!path) return undefined;
+  
+  // Se já começa com http:// ou https://, já é uma URL completa
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  
+  // Se começa com data:, é uma URL de dados (base64)
+  if (path.startsWith('data:')) {
+    return path;
+  }
+  
+  // Garantir que o caminho comece com /
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  
+  // Retornar a URL completa
+  return `${API_URL}${normalizedPath}`;
+};
 
 export interface RestaurantInfo {
   id: string;
   name: string;
+  slug: string;
+  phone?: string;
+  address?: string;
   description?: string;
   logo?: string;
   coverImage?: string;
-  address?: string;
-  phone?: string;
-  isOpen: boolean;
+  operatingHours?: string | object;
   openingHours?: string;
+  themeColor?: string;
 }
 
 export interface CustomerOrderData {
@@ -25,6 +68,8 @@ export interface CustomerOrderData {
     notes?: string;
   }[];
   deliveryMethod: 'pickup' | 'delivery' | 'dineIn';
+  paymentMethod: 'money' | 'pix' | 'credit' | 'debit';
+  changeFor?: number;
   deliveryAddress?: string;
   notes?: string;
 }
@@ -91,13 +136,17 @@ export const menuService = {
         
         console.log(`Processando produto "${product.name || product.Product_name}", categoryId: ${categoryId}`);
         
+        // Obter a imagem e garantir que tenha URL completa
+        const image = product.image || product.Product_image;
+        const fullImageUrl = image ? getFullImageUrl(image) : undefined;
+        
         // Criar o produto processado mantendo a estrutura esperada pelo frontend
         return {
           id: product.id || product.Product_id,
           name: product.name || product.Product_name,
           description: product.description || product.Product_description || "",
           price: parseFloat(product.price || product.Product_price) || 0,
-          image: product.image || product.Product_image,
+          image: fullImageUrl,
           categoryId: categoryId, // Importante: manter exatamente como veio
           restaurantId: restaurantId,
           isActive: product.isActive || product.Product_isActive !== false,
@@ -106,8 +155,8 @@ export const menuService = {
         };
       });
       
-      console.log('Produtos processados com categoryId:', processedProducts.map(p => 
-        `${p.name} → categoria: ${p.categoryId}`
+      console.log('Produtos processados com categoryId e URLs completas:', processedProducts.map(p => 
+        `${p.name} → categoria: ${p.categoryId}, imagem: ${p.image}`
       ));
       
       return processedProducts;
@@ -131,12 +180,16 @@ export const menuService = {
                                  (product.category && product.category.id) || 
                                  categoryId; // Usar o categoryId da URL como fallback
         
+        // Obter a imagem e garantir que tenha URL completa
+        const image = product.image || product.Product_image;
+        const fullImageUrl = image ? getFullImageUrl(image) : undefined;
+        
         return {
           id: product.id || product.Product_id,
           name: product.name || product.Product_name,
           description: product.description || product.Product_description || "",
           price: parseFloat(product.price || product.Product_price) || 0,
-          image: product.image || product.Product_image,
+          image: fullImageUrl,
           categoryId: productCategoryId, // Garantir que o valor é consistente
           restaurantId: restaurantId,
           isActive: product.isActive || product.Product_isActive !== false,

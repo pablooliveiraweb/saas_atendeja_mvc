@@ -14,6 +14,8 @@ import Products from './pages/Products/index';
 import Categories from './pages/Categories/index';
 import Customers from './pages/Customers/index';
 import Settings from './pages/Settings/index';
+import WhatsAppSettings from './pages/Settings/WhatsAppSettings';
+import RestaurantSettings from './pages/Settings/RestaurantSettings';
 import Menu from './pages/Menu/index';
 import LandingPage from './pages/LandingPage/index';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -75,14 +77,6 @@ const MenuWithMuiTheme = () => (
 );
 
 function App() {
-  // Limpar localStorage para garantir que não haja dados de autenticação antigos
-  React.useEffect(() => {
-    console.log("Limpando localStorage para testes");
-    localStorage.removeItem('@Atende:token');
-    localStorage.removeItem('@Atende:user');
-    localStorage.removeItem('@Atende:restaurant');
-  }, []);
-
   return (
     <ChakraProvider theme={theme}>
       <ColorModeProvider>
@@ -149,6 +143,22 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Settings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings/whatsapp"
+                  element={
+                    <ProtectedRoute>
+                      <WhatsAppSettings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings/restaurant"
+                  element={
+                    <ProtectedRoute>
+                      <RestaurantSettings />
                     </ProtectedRoute>
                   }
                 />

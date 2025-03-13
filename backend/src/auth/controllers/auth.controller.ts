@@ -6,6 +6,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from '../services/auth.service';
 import { LoginDto } from '../dto/login.dto';
@@ -17,12 +18,17 @@ import {
   LoginResponse,
   RefreshTokenResponse,
   RequestWithUser,
+  JwtPayload,
 } from '../types/auth.types';
 import { ChangePasswordDto } from '../dto/change-password.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -48,6 +54,55 @@ export class AuthController {
       throw new Error('Token não fornecido');
     }
     return this.authService.refreshToken(body.token);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('check-auth')
+  @HttpCode(HttpStatus.OK)
+  async checkAuth(@Request() req: RequestWithUser): Promise<LoginResponse> {
+    // Obter o usuário autenticado
+    const user = await this.authService.findUserById(req.user.id);
+    
+    if (!user) {
+      throw new UnauthorizedException('Usuário não encontrado');
+    }
+    
+    // Buscar o restaurante do usuário
+    const restaurant = await this.authService.findRestaurantByUserId(user.id);
+    
+    // Gerar novos tokens
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      restaurantId: restaurant?.id || null,
+    };
+    
+    // Gerar token de acesso
+    const access_token = this.jwtService.sign(payload);
+    
+    // Gerar token de atualização com validade maior
+    const refresh_token = this.jwtService.sign(payload, {
+      expiresIn: '30d',
+    });
+    
+    return {
+      access_token,
+      refresh_token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      },
+      restaurant: restaurant
+        ? {
+            id: restaurant.id,
+            name: restaurant.name,
+            logo: restaurant.logo,
+          }
+        : null,
+    };
   }
 
   @UseGuards(JwtAuthGuard)

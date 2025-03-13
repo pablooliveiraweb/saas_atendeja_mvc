@@ -35,6 +35,8 @@ const ai_module_1 = require("./ai/ai.module");
 const conversation_entity_1 = require("./ai/entities/conversation.entity");
 const message_entity_1 = require("./ai/entities/message.entity");
 const evolution_api_config_1 = require("./config/evolution-api.config");
+const core_1 = require("@nestjs/core");
+const transform_interceptor_1 = require("./common/interceptors/transform.interceptor");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -64,6 +66,10 @@ exports.AppModule = AppModule = __decorate([
             serve_static_1.ServeStaticModule.forRoot({
                 rootPath: (0, path_1.join)(__dirname, '..', 'uploads'),
                 serveRoot: '/uploads',
+                serveStaticOptions: {
+                    index: false,
+                    redirect: false
+                }
             }),
             schedule_1.ScheduleModule.forRoot(),
             typeorm_1.TypeOrmModule.forFeature([restaurant_entity_1.Restaurant, category_entity_1.Category, product_entity_1.Product, user_entity_1.User, order_entity_1.Order, order_item_entity_1.OrderItem, customer_entity_1.Customer, conversation_entity_1.Conversation, message_entity_1.Message]),
@@ -79,7 +85,13 @@ exports.AppModule = AppModule = __decorate([
             ai_module_1.AIModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [
+            app_service_1.AppService,
+            {
+                provide: core_1.APP_INTERCEPTOR,
+                useClass: transform_interceptor_1.TransformInterceptor,
+            },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

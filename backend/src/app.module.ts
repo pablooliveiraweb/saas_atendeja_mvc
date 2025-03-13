@@ -26,6 +26,8 @@ import { AIModule } from './ai/ai.module';
 import { Conversation } from './ai/entities/conversation.entity';
 import { Message } from './ai/entities/message.entity';
 import evolutionApiConfig from './config/evolution-api.config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 @Module({
   imports: [
@@ -52,6 +54,10 @@ import evolutionApiConfig from './config/evolution-api.config';
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
+      serveStaticOptions: {
+        index: false,
+        redirect: false
+      }
     }),
     ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([Restaurant, Category, Product, User, Order, OrderItem, Customer, Conversation, Message]),
@@ -67,6 +73,12 @@ import evolutionApiConfig from './config/evolution-api.config';
     AIModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    },
+  ],
 })
 export class AppModule {}

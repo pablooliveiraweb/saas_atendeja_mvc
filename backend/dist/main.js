@@ -22,9 +22,12 @@ async function bootstrap() {
     const apiPrefix = configService.get('PREFIX') || 'api';
     app.setGlobalPrefix(apiPrefix);
     const port = configService.get('PORT') || 3001;
-    await app.listen(port);
+    const host = configService.get('HOST') || 'localhost';
+    const apiUrl = configService.get('API_URL') || `http://${host}:${port}`;
+    process.env.API_URL = apiUrl;
+    await app.listen(port, '0.0.0.0');
     console.log(`Aplicação rodando na porta ${port}`);
-    console.log(`API disponível em: http://localhost:${port}/${apiPrefix}`);
+    console.log(`API disponível em: ${apiUrl}/${apiPrefix}`);
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

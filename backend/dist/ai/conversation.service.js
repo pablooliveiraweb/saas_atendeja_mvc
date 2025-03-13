@@ -42,16 +42,45 @@ let ConversationService = ConversationService_1 = class ConversationService {
     async handleIncomingMessage(restaurantId, phoneNumber, messageContent) {
         try {
             this.logger.log(`Recebida mensagem de ${phoneNumber} para restaurante ${restaurantId}: ${messageContent}`);
-            const conversation = await this.findOrCreateConversation(restaurantId, phoneNumber);
+            const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+            this.logger.log(`Número de telefone limpo: ${cleanPhoneNumber}`);
+            if (cleanPhoneNumber.startsWith('55') && cleanPhoneNumber.length >= 12) {
+                const phoneWithoutCountryCode = cleanPhoneNumber.substring(2);
+                this.logger.log(`Número com código do país (55): ${cleanPhoneNumber}`);
+                this.logger.log(`Número sem código do país: ${phoneWithoutCountryCode}`);
+                if (phoneWithoutCountryCode.length === 10) {
+                    this.logger.log(`Número sem código do país tem 10 dígitos (sem o 9): ${phoneWithoutCountryCode}`);
+                    this.logger.log(`Possível formato com 9: ${phoneWithoutCountryCode.substring(0, 2) + '9' + phoneWithoutCountryCode.substring(2)}`);
+                }
+                else if (phoneWithoutCountryCode.length === 11 && phoneWithoutCountryCode.charAt(2) === '9') {
+                    this.logger.log(`Número sem código do país tem 11 dígitos (com o 9): ${phoneWithoutCountryCode}`);
+                    this.logger.log(`Possível formato sem 9: ${phoneWithoutCountryCode.substring(0, 2) + phoneWithoutCountryCode.substring(3)}`);
+                }
+            }
+            else if (cleanPhoneNumber.length === 10) {
+                this.logger.log(`Número de telefone com 10 dígitos (sem o 9): ${cleanPhoneNumber}`);
+                this.logger.log(`Possível formato com 9: ${cleanPhoneNumber.substring(0, 2) + '9' + cleanPhoneNumber.substring(2)}`);
+                this.logger.log(`Possível formato com código do país: 55${cleanPhoneNumber}`);
+            }
+            else if (cleanPhoneNumber.length === 11 && cleanPhoneNumber.charAt(2) === '9') {
+                this.logger.log(`Número de telefone com 11 dígitos (com o 9): ${cleanPhoneNumber}`);
+                this.logger.log(`Possível formato sem 9: ${cleanPhoneNumber.substring(0, 2) + cleanPhoneNumber.substring(3)}`);
+                this.logger.log(`Possível formato com código do país: 55${cleanPhoneNumber}`);
+            }
+            else {
+                this.logger.log(`Número de telefone em formato não padrão: ${cleanPhoneNumber} (${cleanPhoneNumber.length} dígitos)`);
+                this.logger.log(`Possível formato com código do país: 55${cleanPhoneNumber}`);
+            }
+            const conversation = await this.findOrCreateConversation(restaurantId, cleanPhoneNumber);
             if ('isTemporary' in conversation && conversation.isTemporary) {
-                this.logger.log(`Conversa temporária para restaurante ${restaurantId} e número ${phoneNumber}`);
-                const assistantResponse = await this.openAIService.getAssistantResponse(restaurantId, messageContent, []);
+                this.logger.log(`Conversa temporária para restaurante ${restaurantId} e número ${cleanPhoneNumber}`);
+                const assistantResponse = await this.openAIService.getAssistantResponse(restaurantId, messageContent, [], cleanPhoneNumber);
                 if (assistantResponse) {
                     const restaurant = await this.restaurantService.findById(restaurantId);
                     if (!restaurant || !restaurant.evolutionApiInstanceName) {
                         throw new Error(`Restaurante ${restaurantId} não possui uma instância configurada`);
                     }
-                    this.logger.log(`Enviando resposta para ${phoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
+                    this.logger.log(`Enviando resposta para ${cleanPhoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
                     await this.evolutionApiService.sendText(restaurant.evolutionApiInstanceName, phoneNumber, assistantResponse);
                 }
                 return assistantResponse;
@@ -80,14 +109,14 @@ let ConversationService = ConversationService_1 = class ConversationService {
             conversation.needsFollowUp = false;
             await this.conversationRepository.save(conversation);
             const conversationHistory = await this.getConversationHistory(conversation.id);
-            const assistantResponse = await this.openAIService.getAssistantResponse(restaurantId, messageContent, conversationHistory);
+            const assistantResponse = await this.openAIService.getAssistantResponse(restaurantId, messageContent, conversationHistory, cleanPhoneNumber);
             if (assistantResponse) {
                 await this.saveMessage(conversation.id, 'assistant', assistantResponse);
                 const restaurant = await this.restaurantService.findById(restaurantId);
                 if (!restaurant || !restaurant.evolutionApiInstanceName) {
                     throw new Error(`Restaurante ${restaurantId} não possui uma instância configurada`);
                 }
-                this.logger.log(`Enviando resposta para ${phoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
+                this.logger.log(`Enviando resposta para ${cleanPhoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
                 await this.evolutionApiService.sendText(restaurant.evolutionApiInstanceName, phoneNumber, assistantResponse);
             }
             return assistantResponse;

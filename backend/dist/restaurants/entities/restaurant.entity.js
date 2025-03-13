@@ -59,6 +59,10 @@ let Restaurant = class Restaurant {
     orders;
     createdAt;
     updatedAt;
+    baseUrl;
+    slug;
+    coverImage;
+    themeColor;
 };
 exports.Restaurant = Restaurant;
 __decorate([
@@ -198,6 +202,22 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)(),
     __metadata("design:type", Date)
 ], Restaurant.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 200, nullable: true }),
+    __metadata("design:type", String)
+], Restaurant.prototype, "baseUrl", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 100, nullable: true }),
+    __metadata("design:type", String)
+], Restaurant.prototype, "slug", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], Restaurant.prototype, "coverImage", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ length: 50, nullable: true, default: '#3182ce' }),
+    __metadata("design:type", String)
+], Restaurant.prototype, "themeColor", void 0);
 exports.Restaurant = Restaurant = __decorate([
     (0, typeorm_1.Entity)('restaurants')
 ], Restaurant);

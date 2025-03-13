@@ -39,17 +39,48 @@ export class ConversationService {
     try {
       this.logger.log(`Recebida mensagem de ${phoneNumber} para restaurante ${restaurantId}: ${messageContent}`);
       
+      // Limpar o número de telefone para garantir consistência
+      const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+      this.logger.log(`Número de telefone limpo: ${cleanPhoneNumber}`);
+      
+      // Verificar o formato do número e adicionar logs para depuração
+      if (cleanPhoneNumber.startsWith('55') && cleanPhoneNumber.length >= 12) {
+        const phoneWithoutCountryCode = cleanPhoneNumber.substring(2);
+        this.logger.log(`Número com código do país (55): ${cleanPhoneNumber}`);
+        this.logger.log(`Número sem código do país: ${phoneWithoutCountryCode}`);
+        
+        if (phoneWithoutCountryCode.length === 10) {
+          this.logger.log(`Número sem código do país tem 10 dígitos (sem o 9): ${phoneWithoutCountryCode}`);
+          this.logger.log(`Possível formato com 9: ${phoneWithoutCountryCode.substring(0, 2) + '9' + phoneWithoutCountryCode.substring(2)}`);
+        } else if (phoneWithoutCountryCode.length === 11 && phoneWithoutCountryCode.charAt(2) === '9') {
+          this.logger.log(`Número sem código do país tem 11 dígitos (com o 9): ${phoneWithoutCountryCode}`);
+          this.logger.log(`Possível formato sem 9: ${phoneWithoutCountryCode.substring(0, 2) + phoneWithoutCountryCode.substring(3)}`);
+        }
+      } else if (cleanPhoneNumber.length === 10) {
+        this.logger.log(`Número de telefone com 10 dígitos (sem o 9): ${cleanPhoneNumber}`);
+        this.logger.log(`Possível formato com 9: ${cleanPhoneNumber.substring(0, 2) + '9' + cleanPhoneNumber.substring(2)}`);
+        this.logger.log(`Possível formato com código do país: 55${cleanPhoneNumber}`);
+      } else if (cleanPhoneNumber.length === 11 && cleanPhoneNumber.charAt(2) === '9') {
+        this.logger.log(`Número de telefone com 11 dígitos (com o 9): ${cleanPhoneNumber}`);
+        this.logger.log(`Possível formato sem 9: ${cleanPhoneNumber.substring(0, 2) + cleanPhoneNumber.substring(3)}`);
+        this.logger.log(`Possível formato com código do país: 55${cleanPhoneNumber}`);
+      } else {
+        this.logger.log(`Número de telefone em formato não padrão: ${cleanPhoneNumber} (${cleanPhoneNumber.length} dígitos)`);
+        this.logger.log(`Possível formato com código do país: 55${cleanPhoneNumber}`);
+      }
+      
       // Encontrar ou criar uma conversa para este número e restaurante
-      const conversation = await this.findOrCreateConversation(restaurantId, phoneNumber);
+      const conversation = await this.findOrCreateConversation(restaurantId, cleanPhoneNumber);
       
       // Se for uma conversa temporária (restaurante não existe), responder sem salvar no banco
       if ('isTemporary' in conversation && conversation.isTemporary) {
-        this.logger.log(`Conversa temporária para restaurante ${restaurantId} e número ${phoneNumber}`);
+        this.logger.log(`Conversa temporária para restaurante ${restaurantId} e número ${cleanPhoneNumber}`);
         
         const assistantResponse = await this.openAIService.getAssistantResponse(
           restaurantId,
           messageContent,
-          []
+          [],
+          cleanPhoneNumber // Passar o número de telefone limpo
         );
         
         if (assistantResponse) {
@@ -61,11 +92,11 @@ export class ConversationService {
           }
           
           // Enviar a resposta via WhatsApp usando a instância do restaurante
-          this.logger.log(`Enviando resposta para ${phoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
+          this.logger.log(`Enviando resposta para ${cleanPhoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
           
           await this.evolutionApiService.sendText(
             restaurant.evolutionApiInstanceName,
-            phoneNumber,
+            phoneNumber, // Usar o número original para envio
             assistantResponse
           );
         }
@@ -111,7 +142,8 @@ export class ConversationService {
       const assistantResponse = await this.openAIService.getAssistantResponse(
         restaurantId,
         messageContent,
-        conversationHistory
+        conversationHistory,
+        cleanPhoneNumber // Passar o número de telefone limpo
       );
       
       if (assistantResponse) {
@@ -125,7 +157,7 @@ export class ConversationService {
           throw new Error(`Restaurante ${restaurantId} não possui uma instância configurada`);
         }
         
-        this.logger.log(`Enviando resposta para ${phoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
+        this.logger.log(`Enviando resposta para ${cleanPhoneNumber} usando instância ${restaurant.evolutionApiInstanceName}`);
         
         await this.evolutionApiService.sendText(
           restaurant.evolutionApiInstanceName,

@@ -20,10 +20,13 @@ const register_dto_1 = require("../dto/register.dto");
 const public_decorator_1 = require("../decorators/public.decorator");
 const jwt_auth_guard_1 = require("../guards/jwt-auth.guard");
 const change_password_dto_1 = require("../dto/change-password.dto");
+const jwt_1 = require("@nestjs/jwt");
 let AuthController = class AuthController {
     authService;
-    constructor(authService) {
+    jwtService;
+    constructor(authService, jwtService) {
         this.authService = authService;
+        this.jwtService = jwtService;
     }
     async register(registerDto) {
         return this.authService.register(registerDto);
@@ -36,6 +39,40 @@ let AuthController = class AuthController {
             throw new Error('Token não fornecido');
         }
         return this.authService.refreshToken(body.token);
+    }
+    async checkAuth(req) {
+        const user = await this.authService.findUserById(req.user.id);
+        if (!user) {
+            throw new common_1.UnauthorizedException('Usuário não encontrado');
+        }
+        const restaurant = await this.authService.findRestaurantByUserId(user.id);
+        const payload = {
+            sub: user.id,
+            email: user.email,
+            role: user.role,
+            restaurantId: restaurant?.id || null,
+        };
+        const access_token = this.jwtService.sign(payload);
+        const refresh_token = this.jwtService.sign(payload, {
+            expiresIn: '30d',
+        });
+        return {
+            access_token,
+            refresh_token,
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                name: user.name,
+            },
+            restaurant: restaurant
+                ? {
+                    id: restaurant.id,
+                    name: restaurant.name,
+                    logo: restaurant.logo,
+                }
+                : null,
+        };
     }
     async changePassword(req, changePasswordDto) {
         if (changePasswordDto.newPassword !== changePasswordDto.confirmPassword) {
@@ -77,6 +114,15 @@ __decorate([
 ], AuthController.prototype, "refreshToken", null);
 __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('check-auth'),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "checkAuth", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('change-password'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Request)()),
@@ -87,6 +133,7 @@ __decorate([
 ], AuthController.prototype, "changePassword", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
-    __metadata("design:paramtypes", [auth_service_1.AuthService])
+    __metadata("design:paramtypes", [auth_service_1.AuthService,
+        jwt_1.JwtService])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

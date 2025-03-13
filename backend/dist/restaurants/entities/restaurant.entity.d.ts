@@ -44,4 +44,8 @@ export declare class Restaurant {
     orders: Order[];
     createdAt: Date;
     updatedAt: Date;
+    baseUrl: string;
+    slug: string;
+    coverImage: string;
+    themeColor: string;
 }

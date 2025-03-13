@@ -38,12 +38,21 @@ let RestaurantController = class RestaurantController {
     }
     async findBySlug(slug) {
         const normalizedInputSlug = slug.toLowerCase();
-        const restaurants = await this.restaurantRepository.find();
-        const restaurant = restaurants.find(r => {
-            const restaurantSlug = normalizeText(r.name);
-            return restaurantSlug === normalizedInputSlug;
+        const restaurant = await this.restaurantRepository.findOne({
+            where: { slug: normalizedInputSlug }
         });
         if (!restaurant) {
+            const restaurants = await this.restaurantRepository.find();
+            const restaurantByName = restaurants.find(r => {
+                const restaurantSlug = normalizeText(r.name);
+                return restaurantSlug === normalizedInputSlug;
+            });
+            if (restaurantByName) {
+                if (!restaurantByName.slug) {
+                    await this.restaurantService.generateAndSaveSlug(restaurantByName.id);
+                }
+                return restaurantByName;
+            }
             throw new common_1.NotFoundException(`Restaurant with slug ${slug} not found`);
         }
         return restaurant;
@@ -82,6 +91,26 @@ let RestaurantController = class RestaurantController {
         catch (error) {
             throw new common_1.NotFoundException(error.message);
         }
+    }
+    async generateSlugs() {
+        const restaurants = await this.restaurantRepository.find();
+        const results = await Promise.all(restaurants.map(async (restaurant) => {
+            try {
+                if (!restaurant.slug && restaurant.name) {
+                    const slug = this.restaurantService.generateSlug(restaurant.name);
+                    await this.restaurantRepository.update(restaurant.id, { slug });
+                    return { id: restaurant.id, name: restaurant.name, slug, status: 'success' };
+                }
+                return { id: restaurant.id, name: restaurant.name, slug: restaurant.slug, status: 'skipped' };
+            }
+            catch (error) {
+                return { id: restaurant.id, name: restaurant.name, status: 'error', error: error.message };
+            }
+        }));
+        return {
+            message: 'Slugs generated successfully',
+            results,
+        };
     }
 };
 exports.RestaurantController = RestaurantController;
@@ -155,6 +184,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], RestaurantController.prototype, "sendWhatsAppMessage", null);
+__decorate([
+    (0, common_1.Post)('generate-slugs'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, swagger_1.ApiOperation)({ summary: 'Generate slugs for all restaurants' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Slugs generated successfully' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], RestaurantController.prototype, "generateSlugs", null);
 exports.RestaurantController = RestaurantController = __decorate([
     (0, swagger_1.ApiTags)('restaurants'),
     (0, common_1.Controller)('restaurants'),

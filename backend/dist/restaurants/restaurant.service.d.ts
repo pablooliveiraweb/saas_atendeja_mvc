@@ -13,4 +13,6 @@ export declare class RestaurantService {
     connectWhatsAppInstance(id: string, phoneNumber?: string): Promise<any>;
     getWhatsAppQrCode(id: string): Promise<any>;
     sendWhatsAppMessage(id: string, number: string, text: string): Promise<any>;
+    generateAndSaveSlug(id: string): Promise<Restaurant>;
+    generateSlug(name: string): string;
 }

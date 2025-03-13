@@ -4,6 +4,9 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Restaurant } from '../restaurants/entities/restaurant.entity';
+import { RestaurantService } from '../restaurants/restaurant.service';
+import { EvolutionApiService } from '../evolution-api/evolution-api.service';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('ai')
 export class AIController {
@@ -13,6 +16,9 @@ export class AIController {
     private readonly conversationService: ConversationService,
     @InjectRepository(Restaurant)
     private readonly restaurantRepository: Repository<Restaurant>,
+    private readonly restaurantService: RestaurantService,
+    private readonly evolutionApiService: EvolutionApiService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('webhook')
@@ -92,6 +98,23 @@ export class AIController {
               phoneNumber,
               content
             );
+
+            if (content.toLowerCase().includes('pedido')) {
+              const restaurant = await this.restaurantService.findById(restaurantId);
+              if (restaurant) {
+                // Gerar o slug a partir do nome do restaurante
+                const slug = this.generateSlug(restaurant.name);
+                
+                // Obter a URL do projeto a partir da configuração
+                const baseUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+                
+                // Construir a URL completa do menu
+                const fullUrl = `${baseUrl}/menu/${slug}`;
+                
+                await this.evolutionApiService.sendText(restaurant.evolutionApiInstanceName, phoneNumber, `Acesse o cardápio digital: ${fullUrl}`);
+                this.logger.log(`Link do cardápio enviado para ${phoneNumber}: ${fullUrl}`);
+              }
+            }
           } else {
             this.logger.log('Mensagem não é do tipo texto, ignorando');
           }
@@ -149,6 +172,16 @@ export class AIController {
     
     // Formatar como UUID
     return `${paddedId.substring(0, 8)}-${paddedId.substring(8, 12)}-${paddedId.substring(12, 16)}-${paddedId.substring(16, 20)}-${paddedId.substring(20, 32)}`;
+  }
+
+  // Gerar slug a partir do nome do restaurante (mesma lógica do frontend)
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/[^\w\s]/g, '')         // Remove caracteres especiais
+      .replace(/\s+/g, '-');           // Substitui espaços por hífens
   }
 
   @Cron('0 */10 * * * *') // Executar a cada 10 minutos

@@ -13,6 +13,7 @@ export declare class OrdersService {
     create(orderData: Partial<Order>): Promise<Order>;
     update(id: string, updateData: Partial<Order>): Promise<Order>;
     remove(id: string): Promise<void>;
+    findByCustomerPhone(phone: string, limit?: number): Promise<Order[]>;
     private handleStatusChange;
     private getStatusMessage;
 }

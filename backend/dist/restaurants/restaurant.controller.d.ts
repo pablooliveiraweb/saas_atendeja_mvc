@@ -13,4 +13,20 @@ export declare class RestaurantController {
         number: string;
         text: string;
     }): Promise<any>;
+    generateSlugs(): Promise<{
+        message: string;
+        results: ({
+            id: string;
+            name: string;
+            slug: string;
+            status: string;
+            error?: undefined;
+        } | {
+            id: string;
+            name: string;
+            status: string;
+            error: any;
+            slug?: undefined;
+        })[];
+    }>;
 }

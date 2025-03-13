@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var CustomersService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomersService = void 0;
 const common_1 = require("@nestjs/common");
@@ -19,10 +20,13 @@ const typeorm_2 = require("typeorm");
 const customer_entity_1 = require("./entities/customer.entity");
 const order_entity_1 = require("../orders/entities/order.entity");
 const restaurant_entity_1 = require("../restaurants/entities/restaurant.entity");
-let CustomersService = class CustomersService {
+const common_2 = require("@nestjs/common");
+const typeorm_3 = require("typeorm");
+let CustomersService = CustomersService_1 = class CustomersService {
     customerRepository;
     orderRepository;
     restaurantRepository;
+    logger = new common_2.Logger(CustomersService_1.name);
     constructor(customerRepository, orderRepository, restaurantRepository) {
         this.customerRepository = customerRepository;
         this.orderRepository = orderRepository;
@@ -30,15 +34,15 @@ let CustomersService = class CustomersService {
     }
     async create(createCustomerDto, restaurantId) {
         try {
-            console.log('Criando cliente com DTO:', JSON.stringify(createCustomerDto, null, 2));
-            console.log('Restaurant ID:', restaurantId);
+            this.logger.log('Criando cliente com DTO:', JSON.stringify(createCustomerDto, null, 2));
+            this.logger.log('Restaurant ID:', restaurantId);
             const restaurant = await this.findRestaurantById(restaurantId);
             if (!restaurant) {
                 const errorMsg = `Restaurante com ID ${restaurantId} não encontrado.`;
-                console.error(errorMsg);
+                this.logger.error(errorMsg);
                 throw new Error(errorMsg);
             }
-            console.log('Restaurante encontrado:', restaurant.name);
+            this.logger.log('Restaurante encontrado:', restaurant.name);
             if (createCustomerDto.phone) {
                 try {
                     const existingCustomer = await this.customerRepository.findOne({
@@ -48,131 +52,180 @@ let CustomersService = class CustomersService {
                         }
                     });
                     if (existingCustomer) {
-                        console.log('Cliente já existe, atualizando dados:', existingCustomer);
+                        this.logger.log('Cliente já existe, atualizando dados:', existingCustomer);
                         Object.assign(existingCustomer, createCustomerDto);
                         return await this.customerRepository.save(existingCustomer);
                     }
                 }
                 catch (error) {
-                    console.log('Erro ao verificar cliente existente:', error);
+                    this.logger.log('Erro ao verificar cliente existente:', error);
                 }
             }
             const customer = this.customerRepository.create({
                 ...createCustomerDto,
                 restaurantId
             });
-            console.log('Objeto cliente criado:', JSON.stringify(customer, null, 2));
+            this.logger.log('Objeto cliente criado:', JSON.stringify(customer, null, 2));
             const savedCustomer = await this.customerRepository.save(customer);
-            console.log('Cliente salvo com sucesso:', savedCustomer);
+            this.logger.log('Cliente salvo com sucesso:', savedCustomer);
             return savedCustomer;
         }
         catch (error) {
-            console.error('Erro ao criar cliente:', error);
+            this.logger.error('Erro ao criar cliente:', error);
             throw error;
         }
     }
     async findAll(restaurantId) {
         try {
-            console.log(`Buscando todos os clientes para restaurante ${restaurantId}...`);
+            this.logger.log(`Buscando todos os clientes para restaurante ${restaurantId}...`);
             const queryBuilder = this.customerRepository.createQueryBuilder('customer');
             if (restaurantId) {
                 queryBuilder.where('customer.restaurantId = :restaurantId', { restaurantId });
             }
             queryBuilder.orderBy('customer.name', 'ASC');
             const customers = await queryBuilder.getMany();
-            console.log(`Encontrados ${customers.length} clientes para restaurante ${restaurantId}`);
+            this.logger.log(`Encontrados ${customers.length} clientes para restaurante ${restaurantId}`);
             return customers;
         }
         catch (error) {
-            console.error('Erro ao buscar clientes:', error);
+            this.logger.error('Erro ao buscar clientes:', error);
             return [];
         }
     }
     async findOne(id, restaurantId) {
         try {
-            console.log(`Buscando cliente com ID ${id} para restaurante ${restaurantId}`);
+            this.logger.log(`Buscando cliente com ID ${id} para restaurante ${restaurantId}`);
             const queryBuilder = this.customerRepository.createQueryBuilder('customer')
                 .where('customer.id = :id', { id });
             if (restaurantId && restaurantId.trim() !== '' && restaurantId !== '00000000-0000-0000-0000-000000000000') {
-                console.log(`Adicionando filtro por restaurante ${restaurantId}`);
+                this.logger.log(`Adicionando filtro por restaurante ${restaurantId}`);
                 queryBuilder.andWhere('customer.restaurantId = :restaurantId', { restaurantId });
             }
             else {
-                console.log('Restaurante não fornecido ou inválido, buscando apenas por ID');
+                this.logger.log('Restaurante não fornecido ou inválido, buscando apenas por ID');
             }
             const customer = await queryBuilder.getOne();
             if (!customer) {
-                console.log(`Cliente com ID ${id} não encontrado`);
+                this.logger.log(`Cliente com ID ${id} não encontrado`);
                 throw new common_1.NotFoundException(`Cliente com ID ${id} não encontrado`);
             }
-            console.log(`Cliente encontrado:`, customer);
+            this.logger.log(`Cliente encontrado:`, customer);
             return customer;
         }
         catch (error) {
             if (error instanceof common_1.NotFoundException) {
                 throw error;
             }
-            console.error('Erro ao buscar cliente:', error);
+            this.logger.error('Erro ao buscar cliente:', error);
             throw new Error(`Erro ao buscar cliente: ${error.message}`);
         }
     }
     async findByPhone(phone, restaurantId) {
+        const cleanPhone = phone.replace(/\D/g, '');
+        this.logger.log(`Telefone limpo:`);
+        this.logger.log(`${cleanPhone}`);
+        let phoneVariations = [cleanPhone];
+        if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+            const phoneWithoutCountryCode = cleanPhone.substring(2);
+            phoneVariations.push(phoneWithoutCountryCode);
+            this.logger.log(`Adicionando variação sem código do país: ${phoneWithoutCountryCode}`);
+            if (phoneWithoutCountryCode.length === 10) {
+                const phoneWithNine = phoneWithoutCountryCode.substring(0, 2) + '9' + phoneWithoutCountryCode.substring(2);
+                phoneVariations.push(phoneWithNine);
+                this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+                phoneVariations.push('55' + phoneWithNine);
+                this.logger.log(`Adicionando variação com código do país + 9: 55${phoneWithNine}`);
+            }
+            else if (phoneWithoutCountryCode.length === 11 && phoneWithoutCountryCode.charAt(2) === '9') {
+                const phoneWithoutNine = phoneWithoutCountryCode.substring(0, 2) + phoneWithoutCountryCode.substring(3);
+                phoneVariations.push(phoneWithoutNine);
+                this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+                phoneVariations.push('55' + phoneWithoutNine);
+                this.logger.log(`Adicionando variação com código do país sem 9: 55${phoneWithoutNine}`);
+            }
+        }
+        else {
+            if (cleanPhone.length === 10) {
+                const phoneWithNine = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+                phoneVariations.push(phoneWithNine);
+                this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+                phoneVariations.push('55' + cleanPhone);
+                phoneVariations.push('55' + phoneWithNine);
+                this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithNine}`);
+            }
+            else if (cleanPhone.length === 11 && cleanPhone.charAt(2) === '9') {
+                const phoneWithoutNine = cleanPhone.substring(0, 2) + cleanPhone.substring(3);
+                phoneVariations.push(phoneWithoutNine);
+                this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+                phoneVariations.push('55' + cleanPhone);
+                phoneVariations.push('55' + phoneWithoutNine);
+                this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithoutNine}`);
+            }
+            else {
+                phoneVariations.push('55' + cleanPhone);
+                this.logger.log(`Adicionando variação com código do país: 55${cleanPhone}`);
+            }
+        }
+        phoneVariations = [...new Set(phoneVariations)];
         try {
-            console.log(`Buscando cliente com telefone ${phone} para restaurante ${restaurantId}...`);
-            const cleanPhone = phone.replace(/\D/g, '');
-            console.log('Telefone limpo:', cleanPhone);
-            const queryBuilder = this.customerRepository.createQueryBuilder('customer')
-                .where('(customer.phone = :phone OR customer.phone = :cleanPhone)', {
-                phone,
-                cleanPhone
-            });
+            const queryBuilder = this.customerRepository.createQueryBuilder('customer');
+            queryBuilder.where(new typeorm_3.Brackets(qb => {
+                phoneVariations.forEach((phoneVar, index) => {
+                    if (index === 0) {
+                        qb.where('customer.phone = :phone' + index, { ['phone' + index]: phoneVar });
+                    }
+                    else {
+                        qb.orWhere('customer.phone = :phone' + index, { ['phone' + index]: phoneVar });
+                    }
+                });
+            }));
             if (restaurantId) {
                 queryBuilder.andWhere('customer.restaurantId = :restaurantId', { restaurantId });
             }
             const customer = await queryBuilder.getOne();
             if (!customer) {
-                console.log(`Cliente com telefone ${phone} não encontrado`);
+                this.logger.log(`Cliente com telefone ${phone} não encontrado (variações testadas: ${phoneVariations.join(', ')})`);
                 throw new common_1.NotFoundException(`Cliente com telefone ${phone} não encontrado`);
             }
-            console.log('Cliente encontrado:', customer);
             return customer;
         }
         catch (error) {
-            console.error(`Erro ao buscar cliente com telefone ${phone}:`, error);
+            this.logger.error(`Erro ao buscar cliente com telefone ${phone}:`);
+            this.logger.error(error.message);
             throw error;
         }
     }
     async update(id, updateCustomerDto, restaurantId) {
         try {
-            console.log(`Atualizando cliente ${id} para restaurante ${restaurantId}:`, updateCustomerDto);
+            this.logger.log(`Atualizando cliente ${id} para restaurante ${restaurantId}:`, updateCustomerDto);
             let customer;
             try {
                 customer = await this.findOne(id, restaurantId);
-                console.log('Cliente encontrado:', customer);
+                this.logger.log('Cliente encontrado:', customer);
             }
             catch (error) {
-                console.log('Cliente não encontrado com restaurantId, tentando apenas com ID...');
+                this.logger.log('Cliente não encontrado com restaurantId, tentando apenas com ID...');
                 const queryBuilder = this.customerRepository.createQueryBuilder('customer')
                     .where('customer.id = :id', { id });
                 customer = await queryBuilder.getOne();
                 if (!customer) {
-                    console.error(`Cliente com ID ${id} não encontrado`);
+                    this.logger.error(`Cliente com ID ${id} não encontrado`);
                     throw new common_1.NotFoundException(`Cliente com ID ${id} não encontrado`);
                 }
-                console.log('Cliente encontrado apenas com ID:', customer);
+                this.logger.log('Cliente encontrado apenas com ID:', customer);
             }
-            console.log('Atualizando dados do cliente...');
+            this.logger.log('Atualizando dados do cliente...');
             const updatedCustomer = Object.assign(customer, updateCustomerDto);
             if (!updatedCustomer.restaurantId && restaurantId) {
-                console.log(`Definindo restaurantId ${restaurantId} para o cliente`);
+                this.logger.log(`Definindo restaurantId ${restaurantId} para o cliente`);
                 updatedCustomer.restaurantId = restaurantId;
             }
             const savedCustomer = await this.customerRepository.save(updatedCustomer);
-            console.log('Cliente atualizado com sucesso:', savedCustomer);
+            this.logger.log('Cliente atualizado com sucesso:', savedCustomer);
             return savedCustomer;
         }
         catch (error) {
-            console.error('Erro ao atualizar cliente:', error);
+            this.logger.error('Erro ao atualizar cliente:', error);
             throw error;
         }
     }
@@ -194,7 +247,7 @@ let CustomersService = class CustomersService {
             return queryBuilder.getMany();
         }
         catch (error) {
-            console.error('Erro ao buscar clientes:', error);
+            this.logger.error('Erro ao buscar clientes:', error);
             return [];
         }
     }
@@ -202,7 +255,7 @@ let CustomersService = class CustomersService {
         try {
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            console.log('Data de 7 dias atrás:', sevenDaysAgo.toISOString());
+            this.logger.log('Data de 7 dias atrás:', sevenDaysAgo.toISOString());
             const orders = await this.orderRepository.find({
                 select: ['id', 'customerName', 'customerPhone', 'total', 'createdAt'],
                 where: { customerPhone: (0, typeorm_2.Not)((0, typeorm_2.IsNull)()) },
@@ -232,17 +285,17 @@ let CustomersService = class CustomersService {
                 return lastOrderDate < sevenDaysAgo;
             });
             inactiveCustomers.sort((a, b) => new Date(a.lastOrderDate).getTime() - new Date(b.lastOrderDate).getTime());
-            console.log(`Encontrados ${inactiveCustomers.length} clientes inativos`);
+            this.logger.log(`Encontrados ${inactiveCustomers.length} clientes inativos`);
             return inactiveCustomers;
         }
         catch (error) {
-            console.error('Erro ao buscar clientes inativos:', error);
+            this.logger.error('Erro ao buscar clientes inativos:', error);
             throw error;
         }
     }
     async getTopCustomers(restaurantId) {
         try {
-            console.log(`Buscando clientes mais frequentes para restaurante ${restaurantId}...`);
+            this.logger.log(`Buscando clientes mais frequentes para restaurante ${restaurantId}...`);
             const ordersQuery = this.orderRepository.createQueryBuilder('order')
                 .select('order.customerName', 'customerName')
                 .addSelect('order.customerPhone', 'customerPhone')
@@ -253,7 +306,7 @@ let CustomersService = class CustomersService {
                 ordersQuery.andWhere('order.restaurantId = :restaurantId', { restaurantId });
             }
             const orders = await ordersQuery.getRawMany();
-            console.log(`Encontrados ${orders.length} pedidos para análise`);
+            this.logger.log(`Encontrados ${orders.length} pedidos para análise`);
             const customerMap = new Map();
             orders.forEach(order => {
                 const customerPhone = order.customerPhone;
@@ -274,11 +327,11 @@ let CustomersService = class CustomersService {
             const topCustomers = Array.from(customerMap.values())
                 .sort((a, b) => b.orderCount - a.orderCount)
                 .slice(0, 10);
-            console.log(`Encontrados ${topCustomers.length} clientes mais frequentes`);
+            this.logger.log(`Encontrados ${topCustomers.length} clientes mais frequentes`);
             return topCustomers;
         }
         catch (error) {
-            console.error('Erro ao buscar clientes mais frequentes:', error);
+            this.logger.error('Erro ao buscar clientes mais frequentes:', error);
             return [];
         }
     }
@@ -287,13 +340,13 @@ let CustomersService = class CustomersService {
             return await this.restaurantRepository.findOne({ where: { id: restaurantId } });
         }
         catch (error) {
-            console.error(`Erro ao buscar restaurante com ID ${restaurantId}:`, error);
+            this.logger.error(`Erro ao buscar restaurante com ID ${restaurantId}:`, error);
             throw error;
         }
     }
 };
 exports.CustomersService = CustomersService;
-exports.CustomersService = CustomersService = __decorate([
+exports.CustomersService = CustomersService = CustomersService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(customer_entity_1.Customer)),
     __param(1, (0, typeorm_1.InjectRepository)(order_entity_1.Order)),

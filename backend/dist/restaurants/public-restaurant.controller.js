@@ -33,12 +33,18 @@ let PublicRestaurantController = class PublicRestaurantController {
     }
     async findBySlug(slug) {
         const normalizedInputSlug = slug.toLowerCase();
-        const restaurants = await this.restaurantRepository.find();
-        const restaurant = restaurants.find(r => {
-            const restaurantSlug = normalizeText(r.name);
-            return restaurantSlug === normalizedInputSlug;
+        const restaurant = await this.restaurantRepository.findOne({
+            where: { slug: normalizedInputSlug }
         });
         if (!restaurant) {
+            const restaurants = await this.restaurantRepository.find();
+            const restaurantByName = restaurants.find(r => {
+                const restaurantSlug = normalizeText(r.name);
+                return restaurantSlug === normalizedInputSlug;
+            });
+            if (restaurantByName) {
+                return restaurantByName;
+            }
             throw new common_1.NotFoundException(`Restaurant with slug ${slug} not found`);
         }
         return restaurant;

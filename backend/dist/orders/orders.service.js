@@ -94,6 +94,70 @@ let OrdersService = OrdersService_1 = class OrdersService {
         const order = await this.findOne(id);
         await this.orderRepository.remove(order);
     }
+    async findByCustomerPhone(phone, limit = 5) {
+        this.logger.log(`Buscando pedidos para o cliente com telefone: ${phone}`);
+        try {
+            const cleanPhone = phone.replace(/\D/g, '');
+            this.logger.log(`Telefone limpo: ${cleanPhone}`);
+            let phoneVariations = [cleanPhone];
+            if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+                const phoneWithoutCountryCode = cleanPhone.substring(2);
+                phoneVariations.push(phoneWithoutCountryCode);
+                this.logger.log(`Adicionando variação sem código do país: ${phoneWithoutCountryCode}`);
+                if (phoneWithoutCountryCode.length === 10) {
+                    const phoneWithNine = phoneWithoutCountryCode.substring(0, 2) + '9' + phoneWithoutCountryCode.substring(2);
+                    phoneVariations.push(phoneWithNine);
+                    this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+                    phoneVariations.push('55' + phoneWithNine);
+                    this.logger.log(`Adicionando variação com código do país + 9: 55${phoneWithNine}`);
+                }
+                else if (phoneWithoutCountryCode.length === 11 && phoneWithoutCountryCode.charAt(2) === '9') {
+                    const phoneWithoutNine = phoneWithoutCountryCode.substring(0, 2) + phoneWithoutCountryCode.substring(3);
+                    phoneVariations.push(phoneWithoutNine);
+                    this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+                    phoneVariations.push('55' + phoneWithoutNine);
+                    this.logger.log(`Adicionando variação com código do país sem 9: 55${phoneWithoutNine}`);
+                }
+            }
+            else {
+                if (cleanPhone.length === 10) {
+                    const phoneWithNine = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+                    phoneVariations.push(phoneWithNine);
+                    this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+                    phoneVariations.push('55' + cleanPhone);
+                    phoneVariations.push('55' + phoneWithNine);
+                    this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithNine}`);
+                }
+                else if (cleanPhone.length === 11 && cleanPhone.charAt(2) === '9') {
+                    const phoneWithoutNine = cleanPhone.substring(0, 2) + cleanPhone.substring(3);
+                    phoneVariations.push(phoneWithoutNine);
+                    this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+                    phoneVariations.push('55' + cleanPhone);
+                    phoneVariations.push('55' + phoneWithoutNine);
+                    this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithoutNine}`);
+                }
+                else {
+                    phoneVariations.push('55' + cleanPhone);
+                    this.logger.log(`Adicionando variação com código do país: 55${cleanPhone}`);
+                }
+            }
+            phoneVariations = [...new Set(phoneVariations)];
+            const orders = await this.orderRepository.find({
+                where: [
+                    ...phoneVariations.map(phoneVar => ({ customerPhone: phoneVar }))
+                ],
+                order: { createdAt: 'DESC' },
+                take: limit,
+                relations: ['orderItems', 'orderItems.product']
+            });
+            this.logger.log(`Encontrados ${orders.length} pedidos para o cliente com telefone ${phone} (variações testadas: ${phoneVariations.join(', ')})`);
+            return orders;
+        }
+        catch (error) {
+            this.logger.error(`Erro ao buscar pedidos para o cliente com telefone ${phone}: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
     async handleStatusChange(order, oldStatus) {
         try {
             if (!order.restaurant) {

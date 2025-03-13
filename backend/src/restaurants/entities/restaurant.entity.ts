@@ -131,4 +131,16 @@ export class Restaurant {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ length: 200, nullable: true })
+  baseUrl: string;
+
+  @Column({ length: 100, nullable: true })
+  slug: string;
+
+  @Column({ nullable: true })
+  coverImage: string;
+
+  @Column({ length: 50, nullable: true, default: '#3182ce' })
+  themeColor: string;
 } 

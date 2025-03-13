@@ -343,6 +343,23 @@ let EvolutionApiService = EvolutionApiService_1 = class EvolutionApiService {
             throw error;
         }
     }
+    async sendButton(url, payload) {
+        try {
+            this.logger.log(`Enviando botão para a URL: ${url}`);
+            const response = await axios_1.default.post(url, payload, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.apiKey,
+                },
+            });
+            this.logger.log(`Botão enviado com sucesso: ${JSON.stringify(response.data)}`);
+            return response.data;
+        }
+        catch (error) {
+            this.logger.error(`Erro ao enviar botão: ${error.message}`);
+            throw error;
+        }
+    }
 };
 exports.EvolutionApiService = EvolutionApiService;
 exports.EvolutionApiService = EvolutionApiService = EvolutionApiService_1 = __decorate([

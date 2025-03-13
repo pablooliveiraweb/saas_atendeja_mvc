@@ -34,6 +34,9 @@ let RestaurantService = RestaurantService_1 = class RestaurantService {
                 ...restaurantData,
                 owner,
             });
+            if (restaurant.name) {
+                restaurant.slug = this.generateSlug(restaurant.name);
+            }
             const savedRestaurant = await this.restaurantRepository.save(restaurant);
             const instanceName = `restaurant_${savedRestaurant.id.substring(0, 8)}`;
             try {
@@ -70,9 +73,19 @@ let RestaurantService = RestaurantService_1 = class RestaurantService {
         }
     }
     async findById(id) {
-        return this.restaurantRepository.findOne({ where: { id } });
+        const restaurant = await this.restaurantRepository.findOne({ where: { id } });
+        if (restaurant) {
+            this.logger.log(`Restaurante encontrado: ${restaurant.name}, baseUrl: ${restaurant.baseUrl}`);
+        }
+        else {
+            this.logger.warn(`Restaurante com ID ${id} não encontrado.`);
+        }
+        return restaurant;
     }
     async update(id, updateData) {
+        if (updateData.name) {
+            updateData.slug = this.generateSlug(updateData.name);
+        }
         await this.restaurantRepository.update(id, updateData);
         const restaurant = await this.findById(id);
         if (!restaurant) {
@@ -140,6 +153,22 @@ let RestaurantService = RestaurantService_1 = class RestaurantService {
             this.logger.error(`Erro ao enviar mensagem para o restaurante ${id}: ${error.message}`);
             throw error;
         }
+    }
+    async generateAndSaveSlug(id) {
+        const restaurant = await this.findById(id);
+        if (!restaurant) {
+            throw new Error(`Restaurante com ID ${id} não encontrado`);
+        }
+        const slug = this.generateSlug(restaurant.name);
+        return this.update(id, { slug });
+    }
+    generateSlug(name) {
+        return name
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\w\s]/g, '')
+            .replace(/\s+/g, '-');
     }
 };
 exports.RestaurantService = RestaurantService;

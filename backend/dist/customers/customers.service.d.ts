@@ -8,6 +8,7 @@ export declare class CustomersService {
     private readonly customerRepository;
     private readonly orderRepository;
     private readonly restaurantRepository;
+    private readonly logger;
     constructor(customerRepository: Repository<Customer>, orderRepository: Repository<Order>, restaurantRepository: Repository<Restaurant>);
     create(createCustomerDto: CreateCustomerDto, restaurantId: string): Promise<Customer>;
     findAll(restaurantId: string): Promise<Customer[]>;

@@ -11,6 +11,7 @@ import { AIController } from './ai.controller';
 import { CustomersModule } from '../customers/customers.module';
 import { EvolutionApiModule } from '../evolution-api/evolution-api.module';
 import { Restaurant } from '../restaurants/entities/restaurant.entity';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { Restaurant } from '../restaurants/entities/restaurant.entity';
     RestaurantModule,
     CustomersModule,
     EvolutionApiModule,
+    OrdersModule,
   ],
   controllers: [AIController],
   providers: [OpenAIService, ConversationService],

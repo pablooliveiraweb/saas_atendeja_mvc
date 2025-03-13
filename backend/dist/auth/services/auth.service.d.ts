@@ -18,4 +18,6 @@ export declare class AuthService {
         success: boolean;
         message: string;
     }>;
+    findUserById(id: string): Promise<User | null>;
+    findRestaurantByUserId(userId: string): Promise<Restaurant | null>;
 }

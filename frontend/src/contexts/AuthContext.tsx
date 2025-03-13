@@ -12,9 +12,15 @@ interface Restaurant {
   id: string;
   name: string;
   logo?: string;
+  coverImage?: string;
   evolutionApiInstanceName?: string;
   evolutionApiInstanceConnected?: boolean;
   evolutionApiInstanceToken?: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  operatingHours?: string;
+  [key: string]: any;
 }
 
 interface AuthState {
@@ -46,6 +52,8 @@ interface AuthContextData {
   error: string | null;
   token: string;
   refreshToken: string;
+  updateRestaurant(restaurant: Restaurant): void;
+  checkAuth(): Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -132,6 +140,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setData({} as AuthState);
   };
 
+  const updateRestaurant = (restaurant: Restaurant) => {
+    localStorage.setItem('@Atende:restaurant', JSON.stringify(restaurant));
+    setData(prevData => ({
+      ...prevData,
+      restaurant
+    }));
+  };
+
+  const checkAuth = async (): Promise<boolean> => {
+    try {
+      const response = await api.post<AuthResponse>('/auth/check-auth');
+      const { access_token, refresh_token, user, restaurant } = response.data;
+
+      localStorage.setItem('@Atende:token', access_token);
+      localStorage.setItem('@Atende:refreshToken', refresh_token);
+      localStorage.setItem('@Atende:user', JSON.stringify(user));
+      
+      if (restaurant) {
+        localStorage.setItem('@Atende:restaurant', JSON.stringify(restaurant));
+      }
+
+      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      console.log('Token renovado e configurado após verificação de autenticação');
+
+      setData({ 
+        token: access_token, 
+        refreshToken: refresh_token,
+        user, 
+        restaurant 
+      });
+
+      return true;
+    } catch (err) {
+      const error = err as any;
+      if (error && error.response && error.response.data) {
+        setError(error.response.data.message || 'Erro ao verificar autenticação');
+      } else {
+        setError('Erro ao verificar autenticação');
+      }
+      return false;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -144,6 +195,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         error,
         token: data.token,
         refreshToken: data.refreshToken,
+        updateRestaurant,
+        checkAuth,
       }}
     >
       {children}

@@ -6,9 +6,13 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { Order } from '../orders/entities/order.entity';
 import { Restaurant } from '../restaurants/entities/restaurant.entity';
+import { Logger } from '@nestjs/common';
+import { Brackets } from 'typeorm';
 
 @Injectable()
 export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
   constructor(
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
@@ -20,18 +24,18 @@ export class CustomersService {
 
   async create(createCustomerDto: CreateCustomerDto, restaurantId: string): Promise<Customer> {
     try {
-      console.log('Criando cliente com DTO:', JSON.stringify(createCustomerDto, null, 2));
-      console.log('Restaurant ID:', restaurantId);
+      this.logger.log('Criando cliente com DTO:', JSON.stringify(createCustomerDto, null, 2));
+      this.logger.log('Restaurant ID:', restaurantId);
       
       // Verificação estrita de restaurante - não criar cliente se o restaurante não existir
       const restaurant = await this.findRestaurantById(restaurantId);
       if (!restaurant) {
         const errorMsg = `Restaurante com ID ${restaurantId} não encontrado.`;
-        console.error(errorMsg);
+        this.logger.error(errorMsg);
         throw new Error(errorMsg);
       }
       
-      console.log('Restaurante encontrado:', restaurant.name);
+      this.logger.log('Restaurante encontrado:', restaurant.name);
       
       // Verificar se o cliente já existe pelo telefone
       if (createCustomerDto.phone) {
@@ -44,13 +48,13 @@ export class CustomersService {
           });
           
           if (existingCustomer) {
-            console.log('Cliente já existe, atualizando dados:', existingCustomer);
+            this.logger.log('Cliente já existe, atualizando dados:', existingCustomer);
             // Atualizar dados do cliente existente
             Object.assign(existingCustomer, createCustomerDto);
             return await this.customerRepository.save(existingCustomer);
           }
         } catch (error) {
-          console.log('Erro ao verificar cliente existente:', error);
+          this.logger.log('Erro ao verificar cliente existente:', error);
           // Continuar com a criação do cliente
         }
       }
@@ -61,20 +65,20 @@ export class CustomersService {
         restaurantId
       });
       
-      console.log('Objeto cliente criado:', JSON.stringify(customer, null, 2));
+      this.logger.log('Objeto cliente criado:', JSON.stringify(customer, null, 2));
       const savedCustomer = await this.customerRepository.save(customer);
-      console.log('Cliente salvo com sucesso:', savedCustomer);
+      this.logger.log('Cliente salvo com sucesso:', savedCustomer);
       
       return savedCustomer;
     } catch (error) {
-      console.error('Erro ao criar cliente:', error);
+      this.logger.error('Erro ao criar cliente:', error);
       throw error;
     }
   }
 
   async findAll(restaurantId: string): Promise<Customer[]> {
     try {
-      console.log(`Buscando todos os clientes para restaurante ${restaurantId}...`);
+      this.logger.log(`Buscando todos os clientes para restaurante ${restaurantId}...`);
       
       // Construir a consulta base
       const queryBuilder = this.customerRepository.createQueryBuilder('customer');
@@ -89,18 +93,18 @@ export class CustomersService {
       
       // Executar a consulta
       const customers = await queryBuilder.getMany();
-      console.log(`Encontrados ${customers.length} clientes para restaurante ${restaurantId}`);
+      this.logger.log(`Encontrados ${customers.length} clientes para restaurante ${restaurantId}`);
       
       return customers;
     } catch (error) {
-      console.error('Erro ao buscar clientes:', error);
+      this.logger.error('Erro ao buscar clientes:', error);
       return [];
     }
   }
 
   async findOne(id: string, restaurantId: string): Promise<Customer> {
     try {
-      console.log(`Buscando cliente com ID ${id} para restaurante ${restaurantId}`);
+      this.logger.log(`Buscando cliente com ID ${id} para restaurante ${restaurantId}`);
       
       // Construir a consulta base
       const queryBuilder = this.customerRepository.createQueryBuilder('customer')
@@ -108,109 +112,181 @@ export class CustomersService {
       
       // Adicionar filtro por restaurante se fornecido e não for vazio
       if (restaurantId && restaurantId.trim() !== '' && restaurantId !== '00000000-0000-0000-0000-000000000000') {
-        console.log(`Adicionando filtro por restaurante ${restaurantId}`);
+        this.logger.log(`Adicionando filtro por restaurante ${restaurantId}`);
         queryBuilder.andWhere('customer.restaurantId = :restaurantId', { restaurantId });
       } else {
-        console.log('Restaurante não fornecido ou inválido, buscando apenas por ID');
+        this.logger.log('Restaurante não fornecido ou inválido, buscando apenas por ID');
       }
       
       // Executar a consulta
       const customer = await queryBuilder.getOne();
       
       if (!customer) {
-        console.log(`Cliente com ID ${id} não encontrado`);
+        this.logger.log(`Cliente com ID ${id} não encontrado`);
         throw new NotFoundException(`Cliente com ID ${id} não encontrado`);
       }
       
-      console.log(`Cliente encontrado:`, customer);
+      this.logger.log(`Cliente encontrado:`, customer);
       return customer;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      console.error('Erro ao buscar cliente:', error);
+      this.logger.error('Erro ao buscar cliente:', error);
       throw new Error(`Erro ao buscar cliente: ${error.message}`);
     }
   }
 
   async findByPhone(phone: string, restaurantId?: string): Promise<Customer> {
+    // Limpar o número de telefone para garantir consistência
+    const cleanPhone = phone.replace(/\D/g, '');
+    this.logger.log(`Telefone limpo:`);
+    this.logger.log(`${cleanPhone}`);
+    
+    // Criar variações do número para lidar com diferentes formatos
+    let phoneVariations = [cleanPhone];
+    
+    // Se o número começa com 55 (código do Brasil), criar variação sem o código
+    if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+      const phoneWithoutCountryCode = cleanPhone.substring(2);
+      phoneVariations.push(phoneWithoutCountryCode);
+      this.logger.log(`Adicionando variação sem código do país: ${phoneWithoutCountryCode}`);
+      
+      // Se o número sem código do país tem 10 dígitos (sem o 9), adicionar variação com o 9
+      if (phoneWithoutCountryCode.length === 10) {
+        const phoneWithNine = phoneWithoutCountryCode.substring(0, 2) + '9' + phoneWithoutCountryCode.substring(2);
+        phoneVariations.push(phoneWithNine);
+        this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+        
+        // Também adicionar variação com código do país + 9
+        phoneVariations.push('55' + phoneWithNine);
+        this.logger.log(`Adicionando variação com código do país + 9: 55${phoneWithNine}`);
+      } 
+      // Se o número sem código do país tem 11 dígitos (com o 9), adicionar variação sem o 9
+      else if (phoneWithoutCountryCode.length === 11 && phoneWithoutCountryCode.charAt(2) === '9') {
+        const phoneWithoutNine = phoneWithoutCountryCode.substring(0, 2) + phoneWithoutCountryCode.substring(3);
+        phoneVariations.push(phoneWithoutNine);
+        this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+        
+        // Também adicionar variação com código do país sem o 9
+        phoneVariations.push('55' + phoneWithoutNine);
+        this.logger.log(`Adicionando variação com código do país sem 9: 55${phoneWithoutNine}`);
+      }
+    } 
+    // Se o número não começa com 55, verificar se precisa adicionar variações com/sem 9
+    else {
+      // Se o número tem 10 dígitos (sem o 9), adicionar variação com o 9
+      if (cleanPhone.length === 10) {
+        const phoneWithNine = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+        phoneVariations.push(phoneWithNine);
+        this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+        
+        // Também adicionar variações com código do país
+        phoneVariations.push('55' + cleanPhone);
+        phoneVariations.push('55' + phoneWithNine);
+        this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithNine}`);
+      } 
+      // Se o número tem 11 dígitos (com o 9), adicionar variação sem o 9
+      else if (cleanPhone.length === 11 && cleanPhone.charAt(2) === '9') {
+        const phoneWithoutNine = cleanPhone.substring(0, 2) + cleanPhone.substring(3);
+        phoneVariations.push(phoneWithoutNine);
+        this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+        
+        // Também adicionar variações com código do país
+        phoneVariations.push('55' + cleanPhone);
+        phoneVariations.push('55' + phoneWithoutNine);
+        this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithoutNine}`);
+      }
+      // Para outros formatos, adicionar variação com código do país
+      else {
+        phoneVariations.push('55' + cleanPhone);
+        this.logger.log(`Adicionando variação com código do país: 55${cleanPhone}`);
+      }
+    }
+    
+    // Remover duplicatas
+    phoneVariations = [...new Set(phoneVariations)];
+    
     try {
-      console.log(`Buscando cliente com telefone ${phone} para restaurante ${restaurantId}...`);
+      // Construir a query para buscar o cliente com qualquer uma das variações do número
+      const queryBuilder = this.customerRepository.createQueryBuilder('customer');
       
-      // Remover formatação para compatibilidade
-      const cleanPhone = phone.replace(/\D/g, '');
-      console.log('Telefone limpo:', cleanPhone);
+      // Adicionar condição para cada variação do número
+      queryBuilder.where(
+        new Brackets(qb => {
+          phoneVariations.forEach((phoneVar, index) => {
+            if (index === 0) {
+              qb.where('customer.phone = :phone' + index, { ['phone' + index]: phoneVar });
+            } else {
+              qb.orWhere('customer.phone = :phone' + index, { ['phone' + index]: phoneVar });
+            }
+          });
+        })
+      );
       
-      // Construir a consulta
-      const queryBuilder = this.customerRepository.createQueryBuilder('customer')
-        .where('(customer.phone = :phone OR customer.phone = :cleanPhone)', { 
-          phone, 
-          cleanPhone 
-        });
-      
-      // Adicionar filtro por restaurante se fornecido
+      // Adicionar condição de restaurante se fornecido
       if (restaurantId) {
         queryBuilder.andWhere('customer.restaurantId = :restaurantId', { restaurantId });
       }
       
-      // Executar a consulta
+      // Executar a query
       const customer = await queryBuilder.getOne();
       
       if (!customer) {
-        console.log(`Cliente com telefone ${phone} não encontrado`);
+        this.logger.log(`Cliente com telefone ${phone} não encontrado (variações testadas: ${phoneVariations.join(', ')})`);
         throw new NotFoundException(`Cliente com telefone ${phone} não encontrado`);
       }
       
-      console.log('Cliente encontrado:', customer);
       return customer;
     } catch (error) {
-      console.error(`Erro ao buscar cliente com telefone ${phone}:`, error);
+      this.logger.error(`Erro ao buscar cliente com telefone ${phone}:`);
+      this.logger.error(error.message);
       throw error;
     }
   }
 
   async update(id: string, updateCustomerDto: UpdateCustomerDto, restaurantId: string): Promise<Customer> {
     try {
-      console.log(`Atualizando cliente ${id} para restaurante ${restaurantId}:`, updateCustomerDto);
+      this.logger.log(`Atualizando cliente ${id} para restaurante ${restaurantId}:`, updateCustomerDto);
       
       // Verificar se o cliente existe para o restaurante
       let customer;
       try {
         customer = await this.findOne(id, restaurantId);
-        console.log('Cliente encontrado:', customer);
+        this.logger.log('Cliente encontrado:', customer);
       } catch (error) {
         // Se não encontrar com restaurantId, tentar buscar apenas pelo ID
-        console.log('Cliente não encontrado com restaurantId, tentando apenas com ID...');
+        this.logger.log('Cliente não encontrado com restaurantId, tentando apenas com ID...');
         const queryBuilder = this.customerRepository.createQueryBuilder('customer')
           .where('customer.id = :id', { id });
         
         customer = await queryBuilder.getOne();
         
         if (!customer) {
-          console.error(`Cliente com ID ${id} não encontrado`);
+          this.logger.error(`Cliente com ID ${id} não encontrado`);
           throw new NotFoundException(`Cliente com ID ${id} não encontrado`);
         }
         
-        console.log('Cliente encontrado apenas com ID:', customer);
+        this.logger.log('Cliente encontrado apenas com ID:', customer);
       }
       
       // Atualizar os dados
-      console.log('Atualizando dados do cliente...');
+      this.logger.log('Atualizando dados do cliente...');
       const updatedCustomer = Object.assign(customer, updateCustomerDto);
       
       // Se o restaurantId não estiver definido, definir agora
       if (!updatedCustomer.restaurantId && restaurantId) {
-        console.log(`Definindo restaurantId ${restaurantId} para o cliente`);
+        this.logger.log(`Definindo restaurantId ${restaurantId} para o cliente`);
         updatedCustomer.restaurantId = restaurantId;
       }
       
       // Salvar as alterações
       const savedCustomer = await this.customerRepository.save(updatedCustomer);
-      console.log('Cliente atualizado com sucesso:', savedCustomer);
+      this.logger.log('Cliente atualizado com sucesso:', savedCustomer);
       
       return savedCustomer;
     } catch (error) {
-      console.error('Erro ao atualizar cliente:', error);
+      this.logger.error('Erro ao atualizar cliente:', error);
       throw error;
     }
   }
@@ -249,7 +325,7 @@ export class CustomersService {
       // Executar a consulta
       return queryBuilder.getMany();
     } catch (error) {
-      console.error('Erro ao buscar clientes:', error);
+      this.logger.error('Erro ao buscar clientes:', error);
       return [];
     }
   }
@@ -260,7 +336,7 @@ export class CustomersService {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
-      console.log('Data de 7 dias atrás:', sevenDaysAgo.toISOString());
+      this.logger.log('Data de 7 dias atrás:', sevenDaysAgo.toISOString());
       
       // Abordagem alternativa usando subconsultas para evitar problemas com nomes de colunas
       // Primeiro, buscar todos os pedidos
@@ -309,17 +385,17 @@ export class CustomersService {
         new Date(a.lastOrderDate).getTime() - new Date(b.lastOrderDate).getTime()
       );
       
-      console.log(`Encontrados ${inactiveCustomers.length} clientes inativos`);
+      this.logger.log(`Encontrados ${inactiveCustomers.length} clientes inativos`);
       return inactiveCustomers;
     } catch (error) {
-      console.error('Erro ao buscar clientes inativos:', error);
+      this.logger.error('Erro ao buscar clientes inativos:', error);
       throw error;
     }
   }
 
   async getTopCustomers(restaurantId: string): Promise<any[]> {
     try {
-      console.log(`Buscando clientes mais frequentes para restaurante ${restaurantId}...`);
+      this.logger.log(`Buscando clientes mais frequentes para restaurante ${restaurantId}...`);
       
       // Abordagem alternativa usando subconsultas para evitar problemas com nomes de colunas
       // Primeiro, buscar todos os pedidos
@@ -336,7 +412,7 @@ export class CustomersService {
       }
       
       const orders = await ordersQuery.getRawMany();
-      console.log(`Encontrados ${orders.length} pedidos para análise`);
+      this.logger.log(`Encontrados ${orders.length} pedidos para análise`);
       
       // Agrupar por cliente
       const customerMap = new Map();
@@ -364,10 +440,10 @@ export class CustomersService {
         .sort((a, b) => b.orderCount - a.orderCount)
         .slice(0, 10);
       
-      console.log(`Encontrados ${topCustomers.length} clientes mais frequentes`);
+      this.logger.log(`Encontrados ${topCustomers.length} clientes mais frequentes`);
       return topCustomers;
     } catch (error) {
-      console.error('Erro ao buscar clientes mais frequentes:', error);
+      this.logger.error('Erro ao buscar clientes mais frequentes:', error);
       return [];
     }
   }
@@ -381,7 +457,7 @@ export class CustomersService {
     try {
       return await this.restaurantRepository.findOne({ where: { id: restaurantId } });
     } catch (error) {
-      console.error(`Erro ao buscar restaurante com ID ${restaurantId}:`, error);
+      this.logger.error(`Erro ao buscar restaurante com ID ${restaurantId}:`, error);
       throw error;
     }
   }

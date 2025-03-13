@@ -195,6 +195,17 @@ let AuthService = AuthService_1 = class AuthService {
             };
         }
     }
+    async findUserById(id) {
+        return this.userRepository.findOne({
+            where: { id },
+            select: ['id', 'email', 'name', 'role'],
+        });
+    }
+    async findRestaurantByUserId(userId) {
+        return this.restaurantsRepository.findOne({
+            where: { owner: { id: userId } },
+        });
+    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = AuthService_1 = __decorate([

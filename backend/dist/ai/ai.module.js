@@ -20,6 +20,7 @@ const ai_controller_1 = require("./ai.controller");
 const customers_module_1 = require("../customers/customers.module");
 const evolution_api_module_1 = require("../evolution-api/evolution-api.module");
 const restaurant_entity_1 = require("../restaurants/entities/restaurant.entity");
+const orders_module_1 = require("../orders/orders.module");
 let AIModule = class AIModule {
 };
 exports.AIModule = AIModule;
@@ -32,6 +33,7 @@ exports.AIModule = AIModule = __decorate([
             restaurant_module_1.RestaurantModule,
             customers_module_1.CustomersModule,
             evolution_api_module_1.EvolutionApiModule,
+            orders_module_1.OrdersModule,
         ],
         controllers: [ai_controller_1.AIController],
         providers: [openai_service_1.OpenAIService, conversation_service_1.ConversationService],

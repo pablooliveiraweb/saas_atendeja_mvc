@@ -11,6 +11,8 @@ import {
   Tooltip,
   IconButton,
   useColorModeValue,
+  Collapse,
+  Icon,
 } from '@chakra-ui/react';
 import {
   HamburgerIcon,
@@ -20,13 +22,17 @@ import {
   UnlockIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from '@chakra-ui/icons';
 import { UserGroupIcon } from '@heroicons/react/24/outline';
+import { FaClipboardList, FaWhatsapp, FaStore } from 'react-icons/fa';
 
 const Sidebar: React.FC = () => {
   const { pathname } = useLocation();
   const { logout, user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // Cores para modo claro/escuro
   const bgColor = useColorModeValue('white', 'gray.800');
@@ -36,13 +42,26 @@ const Sidebar: React.FC = () => {
   const hoverBgColor = useColorModeValue('gray.50', 'gray.700');
   const activeBgColor = useColorModeValue('blue.50', 'blue.900');
   const activeTextColor = useColorModeValue('blue.600', 'blue.300');
+  const submenuBgColor = useColorModeValue('gray.50', 'gray.750');
   
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
+    // Fechar o submenu de configurações quando colapsar a sidebar
+    if (!isCollapsed) {
+      setIsSettingsOpen(false);
+    }
+  };
+  
+  const toggleSettingsMenu = () => {
+    setIsSettingsOpen(!isSettingsOpen);
   };
   
   const isActive = (path: string) => {
     return pathname === path;
+  };
+
+  const isSettingsActive = () => {
+    return pathname.startsWith('/settings');
   };
 
   return (
@@ -102,6 +121,26 @@ const Sidebar: React.FC = () => {
                 <HStack spacing={2} align="center">
                   <HamburgerIcon boxSize={4} />
                   {!isCollapsed && <Text>Dashboard</Text>}
+                </HStack>
+              </Button>
+            </RouterLink>
+          </Tooltip>
+          
+          <Tooltip label="Pedidos" placement="right" isDisabled={!isCollapsed}>
+            <RouterLink to="/orders">
+              <Button
+                w="full"
+                justifyContent={isCollapsed ? "center" : "flex-start"}
+                variant="ghost"
+                bg={isActive('/orders') ? activeBgColor : "transparent"}
+                color={isActive('/orders') ? activeTextColor : textColor}
+                _hover={{ bg: hoverBgColor }}
+                borderRadius="md"
+                py={3}
+              >
+                <HStack spacing={2} align="center">
+                  <Icon as={FaClipboardList} boxSize={4} />
+                  {!isCollapsed && <Text>Pedidos</Text>}
                 </HStack>
               </Button>
             </RouterLink>
@@ -167,25 +206,104 @@ const Sidebar: React.FC = () => {
             </RouterLink>
           </Tooltip>
           
-          <Tooltip label="Configurações" placement="right" isDisabled={!isCollapsed}>
-            <RouterLink to="/settings">
+          <Box>
+            <Tooltip label="Configurações" placement="right" isDisabled={!isCollapsed}>
               <Button
                 w="full"
-                justifyContent={isCollapsed ? "center" : "flex-start"}
+                justifyContent={isCollapsed ? "center" : "space-between"}
                 variant="ghost"
-                bg={isActive('/settings') ? activeBgColor : "transparent"}
-                color={isActive('/settings') ? activeTextColor : textColor}
+                bg={isSettingsActive() ? activeBgColor : "transparent"}
+                color={isSettingsActive() ? activeTextColor : textColor}
                 _hover={{ bg: hoverBgColor }}
                 borderRadius="md"
                 py={3}
+                onClick={isCollapsed ? undefined : toggleSettingsMenu}
+                as={isCollapsed ? RouterLink : undefined}
+                to={isCollapsed ? "/settings" : undefined}
               >
                 <HStack spacing={2} align="center">
                   <SettingsIcon boxSize={4} />
                   {!isCollapsed && <Text>Configurações</Text>}
                 </HStack>
+                {!isCollapsed && (
+                  <Icon 
+                    as={isSettingsOpen ? ChevronUpIcon : ChevronDownIcon} 
+                    boxSize={4} 
+                  />
+                )}
               </Button>
-            </RouterLink>
-          </Tooltip>
+            </Tooltip>
+            
+            {!isCollapsed && (
+              <Collapse in={isSettingsOpen} animateOpacity>
+                <VStack 
+                  spacing={1} 
+                  align="stretch" 
+                  pl={6} 
+                  mt={1} 
+                  bg={submenuBgColor} 
+                  borderRadius="md"
+                >
+                  <RouterLink to="/settings">
+                    <Button
+                      w="full"
+                      justifyContent="flex-start"
+                      variant="ghost"
+                      bg={isActive('/settings') ? activeBgColor : "transparent"}
+                      color={isActive('/settings') ? activeTextColor : textColor}
+                      _hover={{ bg: hoverBgColor }}
+                      borderRadius="md"
+                      py={2}
+                      size="sm"
+                    >
+                      <HStack spacing={2} align="center">
+                        <SettingsIcon boxSize={3} />
+                        <Text fontSize="sm">Geral</Text>
+                      </HStack>
+                    </Button>
+                  </RouterLink>
+                  
+                  <RouterLink to="/settings/whatsapp">
+                    <Button
+                      w="full"
+                      justifyContent="flex-start"
+                      variant="ghost"
+                      bg={isActive('/settings/whatsapp') ? activeBgColor : "transparent"}
+                      color={isActive('/settings/whatsapp') ? activeTextColor : textColor}
+                      _hover={{ bg: hoverBgColor }}
+                      borderRadius="md"
+                      py={2}
+                      size="sm"
+                    >
+                      <HStack spacing={2} align="center">
+                        <Icon as={FaWhatsapp} boxSize={3} />
+                        <Text fontSize="sm">WhatsApp</Text>
+                      </HStack>
+                    </Button>
+                  </RouterLink>
+                  
+                  <RouterLink to="/settings/restaurant">
+                    <Button
+                      w="full"
+                      justifyContent="flex-start"
+                      variant="ghost"
+                      bg={isActive('/settings/restaurant') ? activeBgColor : "transparent"}
+                      color={isActive('/settings/restaurant') ? activeTextColor : textColor}
+                      _hover={{ bg: hoverBgColor }}
+                      borderRadius="md"
+                      py={2}
+                      size="sm"
+                    >
+                      <HStack spacing={2} align="center">
+                        <Icon as={FaStore} boxSize={3} />
+                        <Text fontSize="sm">Restaurante</Text>
+                      </HStack>
+                    </Button>
+                  </RouterLink>
+                </VStack>
+              </Collapse>
+            )}
+          </Box>
         </VStack>
 
         <Box p={4} borderTop="1px" borderColor={borderColor}>

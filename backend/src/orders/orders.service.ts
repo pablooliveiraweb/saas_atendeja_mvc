@@ -98,6 +98,96 @@ export class OrdersService {
     const order = await this.findOne(id); // Vai lançar exceção se não encontrar
     await this.orderRepository.remove(order);
   }
+
+  async findByCustomerPhone(phone: string, limit: number = 5): Promise<Order[]> {
+    this.logger.log(`Buscando pedidos para o cliente com telefone: ${phone}`);
+    
+    try {
+      // Limpar o número de telefone para garantir consistência
+      const cleanPhone = phone.replace(/\D/g, '');
+      this.logger.log(`Telefone limpo: ${cleanPhone}`);
+      
+      // Criar variações do número para lidar com diferentes formatos
+      let phoneVariations = [cleanPhone];
+      
+      // Se o número começa com 55 (código do Brasil), criar variação sem o código
+      if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+        const phoneWithoutCountryCode = cleanPhone.substring(2);
+        phoneVariations.push(phoneWithoutCountryCode);
+        this.logger.log(`Adicionando variação sem código do país: ${phoneWithoutCountryCode}`);
+        
+        // Se o número sem código do país tem 10 dígitos (sem o 9), adicionar variação com o 9
+        if (phoneWithoutCountryCode.length === 10) {
+          const phoneWithNine = phoneWithoutCountryCode.substring(0, 2) + '9' + phoneWithoutCountryCode.substring(2);
+          phoneVariations.push(phoneWithNine);
+          this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+          
+          // Também adicionar variação com código do país + 9
+          phoneVariations.push('55' + phoneWithNine);
+          this.logger.log(`Adicionando variação com código do país + 9: 55${phoneWithNine}`);
+        } 
+        // Se o número sem código do país tem 11 dígitos (com o 9), adicionar variação sem o 9
+        else if (phoneWithoutCountryCode.length === 11 && phoneWithoutCountryCode.charAt(2) === '9') {
+          const phoneWithoutNine = phoneWithoutCountryCode.substring(0, 2) + phoneWithoutCountryCode.substring(3);
+          phoneVariations.push(phoneWithoutNine);
+          this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+          
+          // Também adicionar variação com código do país sem o 9
+          phoneVariations.push('55' + phoneWithoutNine);
+          this.logger.log(`Adicionando variação com código do país sem 9: 55${phoneWithoutNine}`);
+        }
+      } 
+      // Se o número não começa com 55, verificar se precisa adicionar variações com/sem 9
+      else {
+        // Se o número tem 10 dígitos (sem o 9), adicionar variação com o 9
+        if (cleanPhone.length === 10) {
+          const phoneWithNine = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2);
+          phoneVariations.push(phoneWithNine);
+          this.logger.log(`Adicionando variação com 9: ${phoneWithNine}`);
+          
+          // Também adicionar variações com código do país
+          phoneVariations.push('55' + cleanPhone);
+          phoneVariations.push('55' + phoneWithNine);
+          this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithNine}`);
+        } 
+        // Se o número tem 11 dígitos (com o 9), adicionar variação sem o 9
+        else if (cleanPhone.length === 11 && cleanPhone.charAt(2) === '9') {
+          const phoneWithoutNine = cleanPhone.substring(0, 2) + cleanPhone.substring(3);
+          phoneVariations.push(phoneWithoutNine);
+          this.logger.log(`Adicionando variação sem 9: ${phoneWithoutNine}`);
+          
+          // Também adicionar variações com código do país
+          phoneVariations.push('55' + cleanPhone);
+          phoneVariations.push('55' + phoneWithoutNine);
+          this.logger.log(`Adicionando variações com código do país: 55${cleanPhone}, 55${phoneWithoutNine}`);
+        }
+        // Para outros formatos, adicionar variação com código do país
+        else {
+          phoneVariations.push('55' + cleanPhone);
+          this.logger.log(`Adicionando variação com código do país: 55${cleanPhone}`);
+        }
+      }
+      
+      // Remover duplicatas
+      phoneVariations = [...new Set(phoneVariations)];
+      
+      // Buscar pedidos por todas as variações do número de telefone do cliente
+      const orders = await this.orderRepository.find({
+        where: [
+          ...phoneVariations.map(phoneVar => ({ customerPhone: phoneVar }))
+        ],
+        order: { createdAt: 'DESC' },
+        take: limit,
+        relations: ['orderItems', 'orderItems.product']
+      });
+      
+      this.logger.log(`Encontrados ${orders.length} pedidos para o cliente com telefone ${phone} (variações testadas: ${phoneVariations.join(', ')})`);
+      return orders;
+    } catch (error) {
+      this.logger.error(`Erro ao buscar pedidos para o cliente com telefone ${phone}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
   
   /**
    * Manipula a mudança de status de um pedido

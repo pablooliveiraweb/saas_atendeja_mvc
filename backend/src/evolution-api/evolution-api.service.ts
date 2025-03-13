@@ -536,4 +536,25 @@ export class EvolutionApiService {
       throw error;
     }
   }
+
+  async sendButton(url: string, payload: any): Promise<any> {
+    try {
+      this.logger.log(`Enviando botão para a URL: ${url}`);
+      const response = await axios.post(
+        url,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': this.apiKey,
+          },
+        }
+      );
+      this.logger.log(`Botão enviado com sucesso: ${JSON.stringify(response.data)}`);
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Erro ao enviar botão: ${error.message}`);
+      throw error;
+    }
+  }
 }

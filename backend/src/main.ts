@@ -32,9 +32,15 @@ async function bootstrap() {
   
   // Iniciar servidor
   const port = configService.get<number>('PORT') || 3001;
-  await app.listen(port);
+  const host = configService.get<string>('HOST') || 'localhost';
+  
+  // Configurar a URL base da API para uso no interceptor
+  const apiUrl = configService.get<string>('API_URL') || `http://${host}:${port}`;
+  process.env.API_URL = apiUrl;
+  
+  await app.listen(port, '0.0.0.0');
   console.log(`Aplicação rodando na porta ${port}`);
-  console.log(`API disponível em: http://localhost:${port}/${apiPrefix}`);
+  console.log(`API disponível em: ${apiUrl}/${apiPrefix}`);
 }
 
 bootstrap();

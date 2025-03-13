@@ -36,16 +36,30 @@ export class RestaurantController {
     // Normalizar o slug recebido
     const normalizedInputSlug = slug.toLowerCase();
     
-    // Buscar todos os restaurantes
-    const restaurants = await this.restaurantRepository.find();
-    
-    // Encontrar o restaurante cujo nome normalizado corresponde ao slug
-    const restaurant = restaurants.find(r => {
-      const restaurantSlug = normalizeText(r.name);
-      return restaurantSlug === normalizedInputSlug;
+    // Buscar restaurante pelo slug
+    const restaurant = await this.restaurantRepository.findOne({ 
+      where: { slug: normalizedInputSlug } 
     });
     
+    // Se não encontrar pelo slug exato, tentar buscar pelo nome normalizado (compatibilidade)
     if (!restaurant) {
+      // Buscar todos os restaurantes
+      const restaurants = await this.restaurantRepository.find();
+      
+      // Encontrar o restaurante cujo nome normalizado corresponde ao slug
+      const restaurantByName = restaurants.find(r => {
+        const restaurantSlug = normalizeText(r.name);
+        return restaurantSlug === normalizedInputSlug;
+      });
+      
+      if (restaurantByName) {
+        // Atualizar o slug do restaurante para futuras consultas
+        if (!restaurantByName.slug) {
+          await this.restaurantService.generateAndSaveSlug(restaurantByName.id);
+        }
+        return restaurantByName;
+      }
+      
       throw new NotFoundException(`Restaurant with slug ${slug} not found`);
     }
     
@@ -126,5 +140,41 @@ export class RestaurantController {
     } catch (error) {
       throw new NotFoundException(error.message);
     }
+  }
+
+  @Post('generate-slugs')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Generate slugs for all restaurants' })
+  @ApiResponse({ status: 200, description: 'Slugs generated successfully' })
+  async generateSlugs() {
+    // Buscar todos os restaurantes
+    const restaurants = await this.restaurantRepository.find();
+    
+    // Gerar e salvar o slug para cada restaurante
+    const results = await Promise.all(
+      restaurants.map(async (restaurant) => {
+        try {
+          // Verificar se o restaurante já tem um slug
+          if (!restaurant.slug && restaurant.name) {
+            // Gerar o slug a partir do nome do restaurante
+            const slug = this.restaurantService.generateSlug(restaurant.name);
+            
+            // Atualizar o restaurante com o slug
+            await this.restaurantRepository.update(restaurant.id, { slug });
+            
+            return { id: restaurant.id, name: restaurant.name, slug, status: 'success' };
+          }
+          
+          return { id: restaurant.id, name: restaurant.name, slug: restaurant.slug, status: 'skipped' };
+        } catch (error) {
+          return { id: restaurant.id, name: restaurant.name, status: 'error', error: error.message };
+        }
+      })
+    );
+    
+    return {
+      message: 'Slugs generated successfully',
+      results,
+    };
   }
 } 

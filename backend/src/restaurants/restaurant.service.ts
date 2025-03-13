@@ -31,6 +31,11 @@ export class RestaurantService {
         owner,
       });
       
+      // Gerar o slug a partir do nome do restaurante
+      if (restaurant.name) {
+        restaurant.slug = this.generateSlug(restaurant.name);
+      }
+      
       // Salvar o restaurante para obter o ID
       const savedRestaurant = await this.restaurantRepository.save(restaurant);
       
@@ -85,7 +90,13 @@ export class RestaurantService {
    * @returns Restaurante encontrado ou null
    */
   async findById(id: string): Promise<Restaurant | null> {
-    return this.restaurantRepository.findOne({ where: { id } });
+    const restaurant = await this.restaurantRepository.findOne({ where: { id } });
+    if (restaurant) {
+      this.logger.log(`Restaurante encontrado: ${restaurant.name}, baseUrl: ${restaurant.baseUrl}`);
+    } else {
+      this.logger.warn(`Restaurante com ID ${id} não encontrado.`);
+    }
+    return restaurant;
   }
 
   /**
@@ -95,6 +106,11 @@ export class RestaurantService {
    * @returns Restaurante atualizado
    */
   async update(id: string, updateData: Partial<Restaurant>): Promise<Restaurant> {
+    // Se o nome foi alterado, atualizar o slug
+    if (updateData.name) {
+      updateData.slug = this.generateSlug(updateData.name);
+    }
+    
     await this.restaurantRepository.update(id, updateData);
     const restaurant = await this.findById(id);
     if (!restaurant) {
@@ -210,5 +226,38 @@ export class RestaurantService {
       this.logger.error(`Erro ao enviar mensagem para o restaurante ${id}: ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Gera e salva o slug do restaurante
+   * @param id ID do restaurante
+   * @returns Restaurante atualizado com o slug
+   */
+  async generateAndSaveSlug(id: string): Promise<Restaurant> {
+    const restaurant = await this.findById(id);
+    
+    if (!restaurant) {
+      throw new Error(`Restaurante com ID ${id} não encontrado`);
+    }
+    
+    // Gerar o slug a partir do nome do restaurante
+    const slug = this.generateSlug(restaurant.name);
+    
+    // Atualizar o restaurante com o slug
+    return this.update(id, { slug });
+  }
+  
+  /**
+   * Gera um slug a partir do nome do restaurante
+   * @param name Nome do restaurante
+   * @returns Slug gerado
+   */
+  generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/[^\w\s]/g, '')         // Remove caracteres especiais
+      .replace(/\s+/g, '-');           // Substitui espaços por hífens
   }
 } 

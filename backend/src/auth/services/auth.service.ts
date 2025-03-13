@@ -250,4 +250,27 @@ export class AuthService {
       };
     }
   }
+
+  /**
+   * Busca um usuário pelo ID
+   * @param id ID do usuário
+   * @returns Usuário encontrado ou null
+   */
+  async findUserById(id: string): Promise<User | null> {
+    return this.userRepository.findOne({
+      where: { id },
+      select: ['id', 'email', 'name', 'role'],
+    });
+  }
+
+  /**
+   * Busca um restaurante pelo ID do usuário
+   * @param userId ID do usuário
+   * @returns Restaurante encontrado ou null
+   */
+  async findRestaurantByUserId(userId: string): Promise<Restaurant | null> {
+    return this.restaurantsRepository.findOne({
+      where: { owner: { id: userId } },
+    });
+  }
 }
