@@ -1,5 +1,18 @@
 import { Category } from './category';
 
+export interface Option {
+  id?: string;
+  name: string;
+  price: number;
+}
+
+export interface OptionGroup {
+  name: string;
+  required: boolean;
+  multiple: boolean;
+  options: Option[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -12,7 +25,7 @@ export interface Product {
   isActive: boolean;
   isAvailable: boolean;
   order?: number;
-  additionalOptions?: any[];
+  additionalOptions?: OptionGroup[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -26,5 +39,10 @@ export interface ProductFormData {
   isAvailable?: boolean;
   order?: number;
   categoryId: string;
-  additionalOptions?: any[];
+  additionalOptions?: OptionGroup[];
+}
+
+export interface SelectedOption {
+  groupName: string;
+  option: Option;
 }

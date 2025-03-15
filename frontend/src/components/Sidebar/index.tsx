@@ -9,6 +9,8 @@ import {
   Divider,
   Button,
   HStack,
+  Icon,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import {
   HamburgerIcon,
@@ -20,6 +22,7 @@ import {
   CalendarIcon,
   RepeatIcon,
 } from '@chakra-ui/icons';
+import { FiShoppingBag, FiTag } from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface NavItemProps {
@@ -144,6 +147,13 @@ const Sidebar: React.FC = () => {
           isActive={location.pathname === '/settings'}
         >
           Configurações
+        </NavItem>
+        <NavItem
+          icon={<Icon as={FiTag} boxSize={4} />}
+          to="/coupons"
+          isActive={location.pathname === '/coupons'}
+        >
+          Cupons
         </NavItem>
       </Stack>
 

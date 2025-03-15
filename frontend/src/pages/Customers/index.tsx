@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -50,11 +50,10 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, SearchIcon, PhoneIcon, EmailIcon } from '@chakra-ui/icons';
 import { useForm, Controller } from 'react-hook-form';
-import Layout from '../../components/Layout';
+import { useAuth } from '../../contexts/AuthContext';
 import { customersService } from '../../services/customersService';
 import { Customer, CustomerFormData } from '../../types/customer';
 import { FaUserAltSlash } from 'react-icons/fa';
-import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerFormProps {
   onSubmit: (data: Customer) => void;
@@ -560,145 +559,143 @@ const Customers: React.FC = () => {
   };
 
   return (
-    <Layout title="Clientes">
-      <Box p={4}>
-        <Container maxW="container.xl">
-          {/* Cabeçalho com título e botão de adicionar */}
-          <Flex justify="space-between" align="center" mb={6}>
-            <Heading size="lg">Clientes</Heading>
-            <Button
-              leftIcon={<AddIcon />}
-              colorScheme="blue"
-              onClick={handleAddCustomer}
-            >
-              Adicionar Cliente
-            </Button>
-          </Flex>
+    <Box p={4}>
+      <Container maxW="container.xl">
+        {/* Cabeçalho com título e botão de adicionar */}
+        <Flex justify="space-between" align="center" mb={6}>
+          <Heading size="lg">Clientes</Heading>
+          <Button
+            leftIcon={<AddIcon />}
+            colorScheme="blue"
+            onClick={handleAddCustomer}
+          >
+            Adicionar Cliente
+          </Button>
+        </Flex>
 
-          {/* Barra de pesquisa */}
-          <Flex mb={6}>
-            <InputGroup>
-              <InputLeftElement pointerEvents="none">
-                <SearchIcon color="gray.300" />
-              </InputLeftElement>
-              <Input
-                placeholder="Pesquisar clientes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </InputGroup>
-            <Button ml={2} onClick={handleSearch} isLoading={isLoading}>
-              Buscar
-            </Button>
-          </Flex>
+        {/* Barra de pesquisa */}
+        <Flex mb={6}>
+          <InputGroup>
+            <InputLeftElement pointerEvents="none">
+              <SearchIcon color="gray.300" />
+            </InputLeftElement>
+            <Input
+              placeholder="Pesquisar clientes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </InputGroup>
+          <Button ml={2} onClick={handleSearch} isLoading={isLoading}>
+            Buscar
+          </Button>
+        </Flex>
 
-          {/* Tabela de clientes */}
-          <Table variant="simple">
-            <Thead>
+        {/* Tabela de clientes */}
+        <Table variant="simple">
+          <Thead>
+            <Tr>
+              <Th>Nome</Th>
+              <Th>Telefone</Th>
+              <Th>Email</Th>
+              <Th>Endereço</Th>
+              <Th>Status</Th>
+              <Th width="200px">Ações</Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {isLoading ? (
               <Tr>
-                <Th>Nome</Th>
-                <Th>Telefone</Th>
-                <Th>Email</Th>
-                <Th>Endereço</Th>
-                <Th>Status</Th>
-                <Th width="200px">Ações</Th>
+                <Td colSpan={6} textAlign="center" py={10}>
+                  <Spinner size="xl" color="blue.500" />
+                  <Text mt={4} color="gray.500">Carregando clientes...</Text>
+                </Td>
               </Tr>
-            </Thead>
-            <Tbody>
-              {isLoading ? (
-                <Tr>
-                  <Td colSpan={6} textAlign="center" py={10}>
-                    <Spinner size="xl" color="blue.500" />
-                    <Text mt={4} color="gray.500">Carregando clientes...</Text>
+            ) : customers.length === 0 ? (
+              <Tr>
+                <Td colSpan={6} textAlign="center" py={10}>
+                  <Box>
+                    <Icon as={FaUserAltSlash} boxSize="50px" color="gray.400" />
+                    <Text mt={4} fontSize="lg" fontWeight="medium" color="gray.500">
+                      Nenhum cliente encontrado
+                    </Text>
+                    <Text fontSize="md" color="gray.400" maxWidth="500px" mx="auto" mt={2}>
+                      Não existem clientes cadastrados no sistema ou sua busca não retornou resultados.
+                    </Text>
+                    <Flex mt={6} justifyContent="center" gap={4}>
+                      <Button 
+                        leftIcon={<AddIcon />}
+                        colorScheme="blue"
+                        onClick={handleAddCustomer}
+                      >
+                        Adicionar Cliente
+                      </Button>
+                      <Button 
+                        colorScheme="green"
+                        onClick={handleCreateExampleClients}
+                        isLoading={isCreatingExamples}
+                      >
+                        Criar Clientes de Exemplo
+                      </Button>
+                    </Flex>
+                  </Box>
+                </Td>
+              </Tr>
+            ) : (
+              customers.map((customer) => (
+                <Tr key={customer.id}>
+                  <Td>{customer.name}</Td>
+                  <Td>{customer.phone}</Td>
+                  <Td>{customer.email}</Td>
+                  <Td>{customer.address}</Td>
+                  <Td>
+                    <Badge colorScheme={customer.isActive ? 'green' : 'red'}>
+                      {customer.isActive ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </Td>
+                  <Td>
+                    <HStack spacing={2}>
+                      <IconButton
+                        aria-label="Editar cliente"
+                        icon={<EditIcon />}
+                        size="sm"
+                        colorScheme="blue"
+                        onClick={() => handleEditCustomer(customer)}
+                      />
+                      <IconButton
+                        aria-label="Excluir cliente"
+                        icon={<DeleteIcon />}
+                        size="sm"
+                        colorScheme="red"
+                        onClick={() => handleDelete(customer.id)}
+                      />
+                    </HStack>
                   </Td>
                 </Tr>
-              ) : customers.length === 0 ? (
-                <Tr>
-                  <Td colSpan={6} textAlign="center" py={10}>
-                    <Box>
-                      <Icon as={FaUserAltSlash} boxSize="50px" color="gray.400" />
-                      <Text mt={4} fontSize="lg" fontWeight="medium" color="gray.500">
-                        Nenhum cliente encontrado
-                      </Text>
-                      <Text fontSize="md" color="gray.400" maxWidth="500px" mx="auto" mt={2}>
-                        Não existem clientes cadastrados no sistema ou sua busca não retornou resultados.
-                      </Text>
-                      <Flex mt={6} justifyContent="center" gap={4}>
-                        <Button 
-                          leftIcon={<AddIcon />}
-                          colorScheme="blue"
-                          onClick={handleAddCustomer}
-                        >
-                          Adicionar Cliente
-                        </Button>
-                        <Button 
-                          colorScheme="green"
-                          onClick={handleCreateExampleClients}
-                          isLoading={isCreatingExamples}
-                        >
-                          Criar Clientes de Exemplo
-                        </Button>
-                      </Flex>
-                    </Box>
-                  </Td>
-                </Tr>
-              ) : (
-                customers.map((customer) => (
-                  <Tr key={customer.id}>
-                    <Td>{customer.name}</Td>
-                    <Td>{customer.phone}</Td>
-                    <Td>{customer.email}</Td>
-                    <Td>{customer.address}</Td>
-                    <Td>
-                      <Badge colorScheme={customer.isActive ? 'green' : 'red'}>
-                        {customer.isActive ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </Td>
-                    <Td>
-                      <HStack spacing={2}>
-                        <IconButton
-                          aria-label="Editar cliente"
-                          icon={<EditIcon />}
-                          size="sm"
-                          colorScheme="blue"
-                          onClick={() => handleEditCustomer(customer)}
-                        />
-                        <IconButton
-                          aria-label="Excluir cliente"
-                          icon={<DeleteIcon />}
-                          size="sm"
-                          colorScheme="red"
-                          onClick={() => handleDelete(customer.id)}
-                        />
-                      </HStack>
-                    </Td>
-                  </Tr>
-                ))
-              )}
-            </Tbody>
-          </Table>
+              ))
+            )}
+          </Tbody>
+        </Table>
 
-          {/* Modal de Adicionar/Editar Cliente */}
-          <Modal isOpen={isOpen} onClose={onClose}>
-            <ModalOverlay />
-            <ModalContent>
-              <ModalHeader>
-                {selectedCustomer ? 'Editar Cliente' : 'Novo Cliente'}
-              </ModalHeader>
-              <ModalCloseButton />
-              <ModalBody>
-                <CustomerForm
-                  onSubmit={onSubmit}
-                  initialData={selectedCustomer || undefined}
-                  isEditing={!!selectedCustomer}
-                />
-              </ModalBody>
-            </ModalContent>
-          </Modal>
-        </Container>
-      </Box>
-    </Layout>
+        {/* Modal de Adicionar/Editar Cliente */}
+        <Modal isOpen={isOpen} onClose={onClose}>
+          <ModalOverlay />
+          <ModalContent>
+            <ModalHeader>
+              {selectedCustomer ? 'Editar Cliente' : 'Novo Cliente'}
+            </ModalHeader>
+            <ModalCloseButton />
+            <ModalBody>
+              <CustomerForm
+                onSubmit={onSubmit}
+                initialData={selectedCustomer || undefined}
+                isEditing={!!selectedCustomer}
+              />
+            </ModalBody>
+          </ModalContent>
+        </Modal>
+      </Container>
+    </Box>
   );
 };
 

@@ -38,10 +38,16 @@ export declare class AppController {
         customerPhone: string;
         customerName: string;
         restaurant: Restaurant;
-        user: User;
+        restaurantId: string;
+        customer: import("./customers/entities/customer.entity").Customer;
+        customerId: string;
         orderItems: import("./orders/entities/order-item.entity").OrderItem[];
         notificationSent: boolean;
         printed: boolean;
+        couponCode: string;
+        couponId: string;
+        discountValue: number;
+        coupon: import("./coupons/entities/coupon.entity").Coupon;
         createdAt: Date;
         updatedAt: Date;
     }>;

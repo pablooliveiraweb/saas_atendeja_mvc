@@ -51,7 +51,6 @@ import { AddIcon, EditIcon, DeleteIcon, CheckCircleIcon, WarningIcon } from '@ch
 import { categoriesService } from '../../services/categoriesService';
 import { Category, CategoryFormData } from '../../types/category';
 import { useAuth } from '../../contexts/AuthContext';
-import Layout from '../../components/Layout';
 
 export const Categories: React.FC = () => {
   const { restaurant } = useAuth();
@@ -217,16 +216,14 @@ export const Categories: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Layout title="Categorias">
-        <Flex justify="center" align="center" height="50vh">
-          <Spinner size="xl" color="blue.500" />
-        </Flex>
-      </Layout>
+      <Flex justify="center" align="center" height="50vh">
+        <Spinner size="xl" color="blue.500" />
+      </Flex>
     );
   }
 
   return (
-    <Layout title="Categorias">
+    <>
       {/* Cabeçalho */}
       <Box mb={8} p={4} bg={cardBg} rounded="lg" shadow="sm">
         <Flex justify="space-between" align="center">
@@ -425,7 +422,7 @@ export const Categories: React.FC = () => {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
-    </Layout>
+    </>
   );
 };
 

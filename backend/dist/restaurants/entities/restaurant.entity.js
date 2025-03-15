@@ -13,6 +13,7 @@ exports.Restaurant = exports.SubscriptionPlan = exports.RestaurantStatus = void 
 const typeorm_1 = require("typeorm");
 const user_entity_1 = require("../../users/entities/user.entity");
 const order_entity_1 = require("../../orders/entities/order.entity");
+const coupon_entity_1 = require("../../coupons/entities/coupon.entity");
 var RestaurantStatus;
 (function (RestaurantStatus) {
     RestaurantStatus["ACTIVE"] = "active";
@@ -57,6 +58,7 @@ let Restaurant = class Restaurant {
     evolutionApiInstanceConnected;
     owner;
     orders;
+    coupons;
     createdAt;
     updatedAt;
     baseUrl;
@@ -194,6 +196,10 @@ __decorate([
     (0, typeorm_1.OneToMany)(() => order_entity_1.Order, order => order.restaurant),
     __metadata("design:type", Array)
 ], Restaurant.prototype, "orders", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => coupon_entity_1.Coupon, coupon => coupon.restaurant),
+    __metadata("design:type", Array)
+], Restaurant.prototype, "coupons", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

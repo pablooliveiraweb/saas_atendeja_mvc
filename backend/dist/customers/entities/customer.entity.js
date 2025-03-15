@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Customer = void 0;
 const typeorm_1 = require("typeorm");
 const restaurant_entity_1 = require("../../restaurants/entities/restaurant.entity");
+const order_entity_1 = require("../../orders/entities/order.entity");
 let Customer = class Customer {
     id;
     name;
@@ -22,7 +23,11 @@ let Customer = class Customer {
     isActive;
     document;
     restaurantId;
+    totalOrders;
+    totalSpent;
+    lastOrderAt;
     restaurant;
+    orders;
     createdAt;
     updatedAt;
 };
@@ -52,7 +57,7 @@ __decorate([
     __metadata("design:type", String)
 ], Customer.prototype, "notes", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ default: true }),
+    (0, typeorm_1.Column)({ default: true, name: 'is_active' }),
     __metadata("design:type", Boolean)
 ], Customer.prototype, "isActive", void 0);
 __decorate([
@@ -60,20 +65,36 @@ __decorate([
     __metadata("design:type", String)
 ], Customer.prototype, "document", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
+    (0, typeorm_1.Column)({ nullable: true, name: 'restaurant_id' }),
     __metadata("design:type", String)
 ], Customer.prototype, "restaurantId", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'total_orders', default: 0 }),
+    __metadata("design:type", Number)
+], Customer.prototype, "totalOrders", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'total_spent', type: 'decimal', precision: 10, scale: 2, default: 0 }),
+    __metadata("design:type", Number)
+], Customer.prototype, "totalSpent", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'last_order_at', type: 'timestamp', nullable: true }),
+    __metadata("design:type", Date)
+], Customer.prototype, "lastOrderAt", void 0);
+__decorate([
     (0, typeorm_1.ManyToOne)(() => restaurant_entity_1.Restaurant),
-    (0, typeorm_1.JoinColumn)({ name: 'restaurantId' }),
+    (0, typeorm_1.JoinColumn)({ name: 'restaurant_id' }),
     __metadata("design:type", restaurant_entity_1.Restaurant)
 ], Customer.prototype, "restaurant", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.OneToMany)(() => order_entity_1.Order, order => order.customer),
+    __metadata("design:type", Array)
+], Customer.prototype, "orders", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Customer.prototype, "createdAt", void 0);
 __decorate([
-    (0, typeorm_1.UpdateDateColumn)(),
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at' }),
     __metadata("design:type", Date)
 ], Customer.prototype, "updatedAt", void 0);
 exports.Customer = Customer = __decorate([

@@ -35,18 +35,18 @@ __decorate([
 ], Message.prototype, "role", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => conversation_entity_1.Conversation, conversation => conversation.messages),
-    (0, typeorm_1.JoinColumn)(),
+    (0, typeorm_1.JoinColumn)({ name: 'conversation_id' }),
     __metadata("design:type", conversation_entity_1.Conversation)
 ], Message.prototype, "conversation", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ name: 'conversation_id' }),
     __metadata("design:type", String)
 ], Message.prototype, "conversationId", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Message.prototype, "createdAt", void 0);
 exports.Message = Message = __decorate([
-    (0, typeorm_1.Entity)()
+    (0, typeorm_1.Entity)('messages')
 ], Message);
 //# sourceMappingURL=message.entity.js.map

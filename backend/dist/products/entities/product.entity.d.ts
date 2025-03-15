@@ -9,6 +9,7 @@ export declare class Product {
     isActive: boolean;
     isAvailable: boolean;
     order: number;
+    additionalOptions: string;
     category: Category;
     restaurant: Restaurant;
     createdAt: Date;

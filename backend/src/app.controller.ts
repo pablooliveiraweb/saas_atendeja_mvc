@@ -70,8 +70,62 @@ export class AppController {
       newOrder.deliveryAddress = orderData.deliveryAddress || null;
       newOrder.subtotal = orderData.total || 0;
       newOrder.total = orderData.total || 0;
-      newOrder.notes = JSON.stringify(orderData.items || []);
+      
+      // Processar notas do pedido
+      if (orderData.notes) {
+        // Se as notas já forem uma string, usar diretamente
+        if (typeof orderData.notes === 'string') {
+          newOrder.notes = orderData.notes;
+        } 
+        // Se for um objeto, converter para string legível
+        else if (typeof orderData.notes === 'object') {
+          try {
+            newOrder.notes = JSON.stringify(orderData.notes);
+          } catch (error) {
+            console.error('Erro ao converter notas para string:', error);
+            newOrder.notes = 'Erro ao processar notas do pedido';
+          }
+        }
+      } else if (orderData.items && Array.isArray(orderData.items)) {
+        // Se não houver notas mas houver itens, armazenar os itens como JSON
+        newOrder.notes = JSON.stringify(orderData.items);
+      }
+      
       newOrder.isPaid = false;
+      
+      // Processar cupom se existir
+      if (orderData.couponCode && orderData.restaurantId) {
+        try {
+          // Obter serviço de cupons
+          const couponsService = this.moduleRef.get('CouponsService', { strict: false });
+          if (couponsService) {
+            // Validar cupom
+            const coupon = await couponsService.validateCoupon(
+              orderData.couponCode,
+              orderData.restaurantId,
+              newOrder.subtotal
+            );
+            
+            // Calcular desconto
+            const discount = couponsService.calculateDiscount(coupon, newOrder.subtotal);
+            
+            // Atualizar pedido com informações do cupom
+            newOrder.couponCode = orderData.couponCode;
+            newOrder.couponId = coupon.id;
+            newOrder.discountValue = discount;
+            newOrder.subtotal = newOrder.subtotal;
+            newOrder.total = Math.max(newOrder.subtotal - discount, 0);
+            
+            // Incrementar contador de uso do cupom
+            await couponsService.applyCoupon(coupon.id);
+            
+            console.log(`Cupom ${orderData.couponCode} aplicado com desconto de ${discount}`);
+          }
+        } catch (error) {
+          console.error('Erro ao processar cupom:', error);
+          // Continuar mesmo se houver erro com o cupom
+        }
+      }
       
       // Associar ao restaurante se existir
       if (orderData.restaurantId) {
@@ -79,6 +133,40 @@ export class AppController {
         const restaurant = await this.restaurantRepository.findOne({ where: { id: orderData.restaurantId } });
         if (restaurant) {
           newOrder.restaurant = restaurant;
+          
+          // Verificar se o cliente já existe ou criar um novo
+          if (orderData.customerPhone) {
+            try {
+              // Verificar se o cliente já existe
+              let customer: any = null;
+              try {
+                customer = await this.customersService.findByPhone(orderData.customerPhone, orderData.restaurantId);
+                console.log('Cliente encontrado:', customer);
+              } catch (error) {
+                console.log('Cliente não encontrado, criando novo...');
+                
+                // Criar novo cliente
+                const customerData = {
+                  name: orderData.customerName || 'Cliente',
+                  phone: orderData.customerPhone,
+                  email: `${orderData.customerPhone.substring(0, 6)}@cliente.temp`,
+                };
+                
+                customer = await this.customersService.create(customerData, orderData.restaurantId);
+                console.log('Novo cliente criado:', customer);
+              }
+              
+              // Associar ao cliente se disponível
+              if (customer) {
+                newOrder.customer = customer;
+                newOrder.customerId = customer.id;
+                console.log(`Pedido associado ao cliente ${customer.id}`);
+              }
+            } catch (error) {
+              console.error('Erro ao processar cliente:', error);
+              // Continuar mesmo se houver erro com o cliente
+            }
+          }
         } else {
           console.log(`Restaurante ${orderData.restaurantId} não encontrado, continuando sem associação`);
         }
@@ -149,7 +237,23 @@ export class AppController {
       newOrder.customerName = orderData.customerName;
       newOrder.customerPhone = orderData.customerPhone;
       newOrder.deliveryAddress = orderData.deliveryAddress;
-      newOrder.notes = orderData.notes;
+      
+      // Garantir que as notas sejam armazenadas como texto
+      if (orderData.notes) {
+        // Se as notas já forem uma string, usar diretamente
+        if (typeof orderData.notes === 'string') {
+          newOrder.notes = orderData.notes;
+        } 
+        // Se for um objeto, converter para string legível
+        else if (typeof orderData.notes === 'object') {
+          try {
+            newOrder.notes = JSON.stringify(orderData.notes);
+          } catch (error) {
+            console.error('Erro ao converter notas para string:', error);
+            newOrder.notes = 'Erro ao processar notas do pedido';
+          }
+        }
+      }
       
       // Calcular valores
       let subtotal = 0;
@@ -160,7 +264,40 @@ export class AppController {
       }
       
       newOrder.subtotal = subtotal;
-      newOrder.total = subtotal; // Adicionar taxas, descontos, etc. se necessário
+      newOrder.total = subtotal; // Valor inicial antes de aplicar cupom
+      
+      // Processar cupom se existir
+      if (orderData.couponCode) {
+        try {
+          // Obter serviço de cupons
+          const couponsService = this.moduleRef.get('CouponsService', { strict: false });
+          if (couponsService) {
+            // Validar cupom
+            const coupon = await couponsService.validateCoupon(
+              orderData.couponCode,
+              restaurantId,
+              subtotal
+            );
+            
+            // Calcular desconto
+            const discount = couponsService.calculateDiscount(coupon, subtotal);
+            
+            // Atualizar pedido com informações do cupom
+            newOrder.couponCode = orderData.couponCode;
+            newOrder.couponId = coupon.id;
+            newOrder.discountValue = discount;
+            newOrder.total = Math.max(subtotal - discount, 0);
+            
+            // Incrementar contador de uso do cupom
+            await couponsService.applyCoupon(coupon.id);
+            
+            console.log(`Cupom ${orderData.couponCode} aplicado com desconto de ${discount}`);
+          }
+        } catch (error) {
+          console.error('Erro ao processar cupom:', error);
+          // Continuar mesmo se houver erro com o cupom
+        }
+      }
       
       // Associar ao restaurante
       const restaurant = await this.restaurantRepository.findOne({ where: { id: restaurantId } });
@@ -171,7 +308,8 @@ export class AppController {
       
       // Associar ao cliente se disponível
       if (customer) {
-        newOrder.user = customer;
+        newOrder.customer = customer;
+        newOrder.customerId = customer.id;
       }
       
       // Salvar o pedido

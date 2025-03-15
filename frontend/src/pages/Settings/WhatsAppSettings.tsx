@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Layout from '../../components/Layout';
 import { Box, Heading, Divider, useToast, Alert, AlertIcon, AlertTitle, AlertDescription } from '@chakra-ui/react';
 import WhatsAppTestButton from '../../components/WhatsAppTestButton';
 import { api } from '../../services/api';
@@ -55,26 +54,24 @@ const WhatsAppSettings: React.FC = () => {
   }, [toast, authRestaurant]);
 
   return (
-    <Layout title="Configurações do WhatsApp">
-      <Box p={4}>
-        <Heading size="lg" mb={4}>Configurações do WhatsApp</Heading>
-        <Divider mb={6} />
+    <Box p={4}>
+      <Heading size="lg" mb={4}>Configurações do WhatsApp</Heading>
+      <Divider mb={6} />
 
-        {restaurantId ? (
-          <WhatsAppTestButton restaurantId={restaurantId} />
-        ) : (
-          <Alert status="warning">
-            <AlertIcon />
-            <Box>
-              <AlertTitle>Restaurante não encontrado</AlertTitle>
-              <AlertDescription>
-                Não foi possível encontrar o restaurante associado ao seu usuário. Por favor, verifique se você está logado corretamente.
-              </AlertDescription>
-            </Box>
-          </Alert>
-        )}
-      </Box>
-    </Layout>
+      {restaurantId ? (
+        <WhatsAppTestButton restaurantId={restaurantId} />
+      ) : (
+        <Alert status="warning">
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Restaurante não encontrado</AlertTitle>
+            <AlertDescription>
+              Não foi possível encontrar o restaurante associado ao seu usuário. Por favor, verifique se você está logado corretamente.
+            </AlertDescription>
+          </Box>
+        </Alert>
+      )}
+    </Box>
   );
 };
 

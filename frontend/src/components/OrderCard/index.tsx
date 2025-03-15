@@ -37,11 +37,21 @@ interface OrderCardProps {
     deliveryAddress?: string;
     createdAt: string;
     total: number;
+    subtotal?: number;
     notes?: string;
     restaurant?: {
       id: string;
       name?: string;
       evolutionApiInstanceName?: string;
+    };
+    couponCode?: string;
+    couponId?: string;
+    discountValue?: number;
+    coupon?: {
+      id: string;
+      code: string;
+      type: string;
+      value: number;
     };
   };
   onStatusChange: () => void;
@@ -216,7 +226,21 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) => {
         
         <Flex alignItems="center">
           <Icon as={FiDollarSign} mr={2} color="gray.500" />
-          <Text fontWeight="bold">{formatCurrency(order.total)}</Text>
+          {order.couponCode && order.discountValue && order.discountValue > 0 ? (
+            <Flex direction="column">
+              <Text textDecoration="line-through" fontSize="xs" color="gray.500">
+                {formatCurrency(Number(order.subtotal) || Number(order.total) + Number(order.discountValue) || 0)}
+              </Text>
+              <Text fontWeight="bold">
+                {formatCurrency(Number(order.total) || 0)}
+              </Text>
+              <Text fontSize="xs" color="green.500">
+                Cupom: {order.couponCode} (-{formatCurrency(Number(order.discountValue) || 0)})
+              </Text>
+            </Flex>
+          ) : (
+            <Text fontWeight="bold">{formatCurrency(order.total)}</Text>
+          )}
         </Flex>
       </Stack>
 

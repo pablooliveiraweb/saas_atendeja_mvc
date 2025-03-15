@@ -1,5 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { Restaurant } from '../../restaurants/entities/restaurant.entity';
+import { Order } from '../../orders/entities/order.entity';
 
 @Entity('customers')
 export class Customer {
@@ -21,22 +22,34 @@ export class Customer {
   @Column({ nullable: true })
   notes: string;
 
-  @Column({ default: true })
+  @Column({ default: true, name: 'is_active' })
   isActive: boolean;
 
   @Column({ nullable: true })
   document: string;
 
-  @Column({ nullable: true })
+  @Column({ nullable: true, name: 'restaurant_id' })
   restaurantId: string;
 
+  @Column({ name: 'total_orders', default: 0 })
+  totalOrders: number;
+
+  @Column({ name: 'total_spent', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  totalSpent: number;
+
+  @Column({ name: 'last_order_at', type: 'timestamp', nullable: true })
+  lastOrderAt: Date;
+
   @ManyToOne(() => Restaurant)
-  @JoinColumn({ name: 'restaurantId' })
+  @JoinColumn({ name: 'restaurant_id' })
   restaurant: Restaurant;
 
-  @CreateDateColumn()
+  @OneToMany(() => Order, order => order.customer)
+  orders: Order[];
+
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 } 

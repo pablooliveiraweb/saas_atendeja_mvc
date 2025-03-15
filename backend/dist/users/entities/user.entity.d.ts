@@ -1,4 +1,3 @@
-import { Order } from '../../orders/entities/order.entity';
 export declare enum UserRole {
     ADMIN = "admin",
     RESTAURANT = "restaurant",
@@ -13,7 +12,6 @@ export declare class User {
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
-    orders: Order[];
     hashPassword(): Promise<void>;
     comparePassword(attempt: string): Promise<boolean>;
 }

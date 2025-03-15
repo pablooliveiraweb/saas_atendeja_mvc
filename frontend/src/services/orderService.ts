@@ -37,6 +37,15 @@ export interface Order {
     name: string;
     evolutionApiInstanceName?: string;
   };
+  couponCode?: string;
+  couponId?: string;
+  discountValue?: number;
+  coupon?: {
+    id: string;
+    code: string;
+    type: string;
+    value: number;
+  };
 }
 
 // Objeto que contém as funções de serviço de pedidos

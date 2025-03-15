@@ -36,6 +36,9 @@ export class Product {
   @Column({ default: 0 })
   order: number;
 
+  @Column({ type: 'json', default: '[]' })
+  additionalOptions: string;
+
   @ManyToOne(() => Category, { onDelete: 'CASCADE' })
   @JoinColumn()
   category: Category;

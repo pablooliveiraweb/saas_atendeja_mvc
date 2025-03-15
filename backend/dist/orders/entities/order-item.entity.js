@@ -21,7 +21,9 @@ let OrderItem = class OrderItem {
     additionalOptions;
     notes;
     order;
+    orderId;
     product;
+    productId;
     createdAt;
     updatedAt;
 };
@@ -35,15 +37,15 @@ __decorate([
     __metadata("design:type", Number)
 ], OrderItem.prototype, "quantity", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 2 }),
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 2, name: 'unit_price' }),
     __metadata("design:type", Number)
 ], OrderItem.prototype, "unitPrice", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 2 }),
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 10, scale: 2, name: 'total_price' }),
     __metadata("design:type", Number)
 ], OrderItem.prototype, "totalPrice", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'json', default: '{}' }),
+    (0, typeorm_1.Column)({ type: 'json', default: '{}', name: 'additional_options' }),
     __metadata("design:type", String)
 ], OrderItem.prototype, "additionalOptions", void 0);
 __decorate([
@@ -52,20 +54,28 @@ __decorate([
 ], OrderItem.prototype, "notes", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => order_entity_1.Order, (order) => order.orderItems, { onDelete: 'CASCADE' }),
-    (0, typeorm_1.JoinColumn)(),
+    (0, typeorm_1.JoinColumn)({ name: 'order_id' }),
     __metadata("design:type", order_entity_1.Order)
 ], OrderItem.prototype, "order", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ name: 'order_id' }),
+    __metadata("design:type", String)
+], OrderItem.prototype, "orderId", void 0);
+__decorate([
     (0, typeorm_1.ManyToOne)(() => product_entity_1.Product),
-    (0, typeorm_1.JoinColumn)(),
+    (0, typeorm_1.JoinColumn)({ name: 'product_id' }),
     __metadata("design:type", product_entity_1.Product)
 ], OrderItem.prototype, "product", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.Column)({ name: 'product_id' }),
+    __metadata("design:type", String)
+], OrderItem.prototype, "productId", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], OrderItem.prototype, "createdAt", void 0);
 __decorate([
-    (0, typeorm_1.UpdateDateColumn)(),
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at' }),
     __metadata("design:type", Date)
 ], OrderItem.prototype, "updatedAt", void 0);
 exports.OrderItem = OrderItem = __decorate([

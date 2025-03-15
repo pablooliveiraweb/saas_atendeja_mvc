@@ -26,7 +26,7 @@ import {
   ChevronUpIcon,
 } from '@chakra-ui/icons';
 import { UserGroupIcon } from '@heroicons/react/24/outline';
-import { FaClipboardList, FaWhatsapp, FaStore } from 'react-icons/fa';
+import { FaClipboardList, FaWhatsapp, FaStore, FaTicketAlt } from 'react-icons/fa';
 
 const Sidebar: React.FC = () => {
   const { pathname } = useLocation();
@@ -201,6 +201,26 @@ const Sidebar: React.FC = () => {
                 <HStack spacing={2} align="center">
                   <UserGroupIcon style={{ width: '1em', height: '1em' }} />
                   {!isCollapsed && <Text>Clientes</Text>}
+                </HStack>
+              </Button>
+            </RouterLink>
+          </Tooltip>
+          
+          <Tooltip label="Cupons" placement="right" isDisabled={!isCollapsed}>
+            <RouterLink to="/coupons">
+              <Button
+                w="full"
+                justifyContent={isCollapsed ? "center" : "flex-start"}
+                variant="ghost"
+                bg={isActive('/coupons') ? activeBgColor : "transparent"}
+                color={isActive('/coupons') ? activeTextColor : textColor}
+                _hover={{ bg: hoverBgColor }}
+                borderRadius="md"
+                py={3}
+              >
+                <HStack spacing={2} align="center">
+                  <Icon as={FaTicketAlt} boxSize={4} />
+                  {!isCollapsed && <Text>Cupons</Text>}
                 </HStack>
               </Button>
             </RouterLink>

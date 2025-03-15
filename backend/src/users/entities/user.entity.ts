@@ -6,10 +6,8 @@ import {
   UpdateDateColumn,
   BeforeInsert,
   BeforeUpdate,
-  OneToMany,
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { Order } from '../../orders/entities/order.entity';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -47,9 +45,6 @@ export class User {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => Order, order => order.user)
-  orders: Order[];
-
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {
@@ -61,4 +56,4 @@ export class User {
   async comparePassword(attempt: string): Promise<boolean> {
     return bcrypt.compare(attempt, this.password);
   }
-} 
+}

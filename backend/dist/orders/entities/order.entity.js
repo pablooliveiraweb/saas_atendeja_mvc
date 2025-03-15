@@ -12,8 +12,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Order = exports.OrderType = exports.PaymentMethod = exports.OrderStatus = void 0;
 const typeorm_1 = require("typeorm");
 const restaurant_entity_1 = require("../../restaurants/entities/restaurant.entity");
-const user_entity_1 = require("../../users/entities/user.entity");
+const customer_entity_1 = require("../../customers/entities/customer.entity");
 const order_item_entity_1 = require("./order-item.entity");
+const coupon_entity_1 = require("../../coupons/entities/coupon.entity");
 var OrderStatus;
 (function (OrderStatus) {
     OrderStatus["PENDING"] = "pending";
@@ -27,16 +28,14 @@ var OrderStatus;
 var PaymentMethod;
 (function (PaymentMethod) {
     PaymentMethod["CASH"] = "cash";
-    PaymentMethod["CREDIT"] = "credit";
-    PaymentMethod["DEBIT"] = "debit";
+    PaymentMethod["CARD"] = "card";
     PaymentMethod["PIX"] = "pix";
-    PaymentMethod["ONLINE"] = "online";
 })(PaymentMethod || (exports.PaymentMethod = PaymentMethod = {}));
 var OrderType;
 (function (OrderType) {
-    OrderType["DELIVERY"] = "delivery";
     OrderType["PICKUP"] = "pickup";
-    OrderType["DINE_IN"] = "dine_in";
+    OrderType["DELIVERY"] = "delivery";
+    OrderType["DINE_IN"] = "dineIn";
 })(OrderType || (exports.OrderType = OrderType = {}));
 let Order = class Order {
     id;
@@ -53,10 +52,16 @@ let Order = class Order {
     customerPhone;
     customerName;
     restaurant;
-    user;
+    restaurantId;
+    customer;
+    customerId;
     orderItems;
     notificationSent;
     printed;
+    couponCode;
+    couponId;
+    discountValue;
+    coupon;
     createdAt;
     updatedAt;
 };
@@ -127,12 +132,22 @@ __decorate([
 ], Order.prototype, "customerName", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => restaurant_entity_1.Restaurant, restaurant => restaurant.orders, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'restaurant_id' }),
     __metadata("design:type", restaurant_entity_1.Restaurant)
 ], Order.prototype, "restaurant", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, user => user.orders, { nullable: true }),
-    __metadata("design:type", user_entity_1.User)
-], Order.prototype, "user", void 0);
+    (0, typeorm_1.Column)({ nullable: true, name: 'restaurant_id' }),
+    __metadata("design:type", String)
+], Order.prototype, "restaurantId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => customer_entity_1.Customer, customer => customer.orders, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'customer_id' }),
+    __metadata("design:type", customer_entity_1.Customer)
+], Order.prototype, "customer", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, name: 'customer_id' }),
+    __metadata("design:type", String)
+], Order.prototype, "customerId", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => order_item_entity_1.OrderItem, orderItem => orderItem.order, { cascade: true }),
     __metadata("design:type", Array)
@@ -146,11 +161,28 @@ __decorate([
     __metadata("design:type", Boolean)
 ], Order.prototype, "printed", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], Order.prototype, "couponCode", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, name: 'coupon_id' }),
+    __metadata("design:type", String)
+], Order.prototype, "couponId", void 0);
+__decorate([
+    (0, typeorm_1.Column)('decimal', { precision: 10, scale: 2, default: 0, nullable: true }),
+    __metadata("design:type", Number)
+], Order.prototype, "discountValue", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => coupon_entity_1.Coupon, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'coupon_id' }),
+    __metadata("design:type", coupon_entity_1.Coupon)
+], Order.prototype, "coupon", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Order.prototype, "createdAt", void 0);
 __decorate([
-    (0, typeorm_1.UpdateDateColumn)(),
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at' }),
     __metadata("design:type", Date)
 ], Order.prototype, "updatedAt", void 0);
 exports.Order = Order = __decorate([

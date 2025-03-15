@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '../../components/Layout';
 import {
   Box,
   Heading,
@@ -695,385 +694,379 @@ const RestaurantSettings: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Layout title="Configurações do Restaurante">
-        <Box p={4}>
-          <Heading size="lg" mb={4}>Configurações do Restaurante</Heading>
-          <Divider mb={6} />
-          <Text>Carregando dados do restaurante...</Text>
-        </Box>
-      </Layout>
+      <Box p={4}>
+        <Heading size="lg" mb={4}>Configurações do Restaurante</Heading>
+        <Divider mb={6} />
+        <Text>Carregando dados do restaurante...</Text>
+      </Box>
     );
   }
 
   if (!restaurant) {
     return (
-      <Layout title="Configurações do Restaurante">
-        <Box p={4}>
-          <Heading size="lg" mb={4}>Configurações do Restaurante</Heading>
-          <Divider mb={6} />
-          <Alert status="warning">
-            <AlertIcon />
-            <Box>
-              <AlertTitle>Restaurante não encontrado</AlertTitle>
-              <AlertDescription>
-                Não foi possível encontrar o restaurante associado ao seu usuário. Por favor, verifique se você está logado corretamente.
-              </AlertDescription>
-            </Box>
-          </Alert>
-        </Box>
-      </Layout>
+      <Box p={4}>
+        <Heading size="lg" mb={4}>Configurações do Restaurante</Heading>
+        <Divider mb={6} />
+        <Alert status="warning">
+          <AlertIcon />
+          <Box>
+            <AlertTitle>Restaurante não encontrado</AlertTitle>
+            <AlertDescription>
+              Não foi possível encontrar o restaurante associado ao seu usuário. Por favor, verifique se você está logado corretamente.
+            </AlertDescription>
+          </Box>
+        </Alert>
+      </Box>
     );
   }
 
   return (
-    <Layout title="Configurações do Restaurante">
-      <Box p={4}>
-        <Heading size="lg" mb={4}>Configurações do Restaurante</Heading>
-        <Divider mb={6} />
+    <Box p={4}>
+      <Heading size="lg" mb={4}>Configurações do Restaurante</Heading>
+      <Divider mb={6} />
 
-        <Box as="form" onSubmit={handleSubmit}>
-          <VStack spacing={6} align="stretch">
-            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-              <Box bg={bgColor} p={6} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
-                <Heading size="md" mb={4}>Informações Básicas</Heading>
-                
-                <VStack spacing={4} align="stretch">
-                  <FormControl id="name" isRequired>
-                    <FormLabel>Nome do Restaurante</FormLabel>
-                    <Input 
-                      name="name" 
-                      value={restaurant.name || ''} 
-                      onChange={handleInputChange} 
-                    />
-                  </FormControl>
-                  
-                  <FormControl id="description">
-                    <FormLabel>Descrição</FormLabel>
-                    <Textarea 
-                      name="description" 
-                      value={restaurant.description || ''} 
-                      onChange={handleInputChange}
-                      rows={3}
-                    />
-                    <FormHelperText>Uma breve descrição do seu restaurante</FormHelperText>
-                  </FormControl>
-                  
-                  <FormControl id="address">
-                    <FormLabel>Endereço</FormLabel>
-                    <Input 
-                      name="address" 
-                      value={restaurant.address || ''} 
-                      onChange={handleInputChange} 
-                    />
-                  </FormControl>
-                  
-                  <FormControl id="phone">
-                    <FormLabel>Telefone</FormLabel>
-                    <Input 
-                      name="phone" 
-                      value={restaurant.phone || ''} 
-                      onChange={handleInputChange} 
-                    />
-                  </FormControl>
-                  
-                  <FormControl id="operatingHours" mt={4}>
-                    <FormLabel>Horários de Funcionamento</FormLabel>
-                    <Box 
-                      borderWidth="1px" 
-                      borderRadius="md" 
-                      p={4} 
-                      bg={operatingHoursBgColor}
-                      borderColor={borderColor}
-                    >
-                      <VStack spacing={4} align="stretch">
-                        {Object.keys(operatingHours).map((day) => {
-                          const dayKey = day as keyof OperatingHours;
-                          const dayData = operatingHours[dayKey];
-                          
-                          return (
-                            <Box key={day} mb={4}>
-                              <Flex justify="space-between" align="center" mb={2}>
-                                <Box width="40%">
-                                  <Flex align="center">
-                                    <input 
-                                      type="checkbox" 
-                                      checked={dayData.isOpen} 
-                                      onChange={(e) => handleOperatingHourChange(dayKey, 'isOpen', e.target.checked)}
-                                      style={{ marginRight: '8px' }}
-                                    />
-                                    <Text fontWeight={dayData.isOpen ? "medium" : "normal"} color={dayData.isOpen ? "black" : "gray.500"}>
-                                      {dayData.day}
-                                    </Text>
-                                  </Flex>
-                                </Box>
-                                
-                                {dayData.isOpen && (
-                                  <Button 
-                                    size="sm" 
-                                    colorScheme="blue" 
-                                    onClick={() => addPeriod(dayKey)}
-                                    leftIcon={<Box as="span">+</Box>}
-                                  >
-                                    Adicionar Período
-                                  </Button>
-                                )}
-                              </Flex>
-                              
-                              {dayData.isOpen && dayData.periods.map((period, periodIndex) => (
-                                <Flex key={`${day}-${periodIndex}`} justify="space-between" align="center" ml={4} mb={2}>
-                                  <Text mr={2} fontWeight="medium" fontSize="sm">Período {periodIndex + 1}:</Text>
-                                  
-                                  <Flex flex="1" justify="flex-end" align="center">
-                                    <Input 
-                                      type="time" 
-                                      value={period.open} 
-                                      onChange={(e) => handleOperatingHourChange(
-                                        dayKey, 
-                                        'periods', 
-                                        { key: 'open', val: e.target.value },
-                                        periodIndex
-                                      )}
-                                      size="sm"
-                                      width="120px"
-                                      isDisabled={!dayData.isOpen}
-                                      mr={2}
-                                    />
-                                    <Text mx={2} alignSelf="center" color={dayData.isOpen ? "black" : "gray.500"}>às</Text>
-                                    <Input 
-                                      type="time" 
-                                      value={period.close} 
-                                      onChange={(e) => handleOperatingHourChange(
-                                        dayKey, 
-                                        'periods', 
-                                        { key: 'close', val: e.target.value },
-                                        periodIndex
-                                      )}
-                                      size="sm"
-                                      width="120px"
-                                      isDisabled={!dayData.isOpen}
-                                    />
-                                    
-                                    {dayData.periods.length > 1 && (
-                                      <IconButton
-                                        aria-label="Remover período"
-                                        icon={<Box as="span">✕</Box>}
-                                        size="sm"
-                                        variant="ghost"
-                                        colorScheme="red"
-                                        ml={2}
-                                        onClick={() => removePeriod(dayKey, periodIndex)}
-                                      />
-                                    )}
-                                  </Flex>
-                                </Flex>
-                              ))}
-                            </Box>
-                          );
-                        })}
-                      </VStack>
-                      
-                      <Box mt={4} p={3} bg="gray.50" borderRadius="md">
-                        <Text fontSize="sm" fontWeight="medium">Visualização:</Text>
-                        <Text fontSize="sm" mt={1}>{formatOperatingHoursForDisplay()}</Text>
-                      </Box>
-                      
-                      <Text fontSize="xs" mt={2} color="gray.500">
-                        Os horários de funcionamento serão usados para determinar se o restaurante está aberto ou fechado no menu digital.
-                        Você pode adicionar múltiplos períodos para cada dia, como almoço e jantar.
-                      </Text>
-                    </Box>
-                  </FormControl>
-                </VStack>
-              </Box>
-              
-              <Box bg={bgColor} p={6} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
-                <Heading size="md" mb={4}>Imagens</Heading>
-                
-                <VStack spacing={6} align="stretch">
-                  <FormControl id="logo">
-                    <FormLabel>Logo do Restaurante</FormLabel>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoChange}
-                      p={1}
-                    />
-                    <FormHelperText>Tamanho recomendado: 200x200 pixels</FormHelperText>
-                    
-                    {(logoPreview || (restaurant && restaurant.logo)) && (
-                      <Flex mt={4} justify="center" direction="column" align="center">
-                        <Box 
-                          border="1px solid" 
-                          borderColor="gray.200" 
-                          borderRadius="md" 
-                          p={2} 
-                          bg="white"
-                          maxW="200px"
-                          maxH="200px"
-                          overflow="hidden"
-                        >
-                          <SafeImage 
-                            src={logoPreview || (restaurant?.logo ? `${API_URL}${restaurant.logo.startsWith('/') ? '' : '/'}${restaurant.logo}` : undefined)} 
-                            alt="Logo Preview" 
-                            style={{
-                              maxHeight: "100px",
-                              maxWidth: "100%",
-                              objectFit: "contain"
-                            }}
-                          />
-                        </Box>
-                        <Text fontSize="sm" color="gray.500" mt={2}>
-                          Logo atual do restaurante
-                        </Text>
-                      </Flex>
-                    )}
-                  </FormControl>
-                  
-                  <FormControl id="coverImage">
-                    <FormLabel>Imagem de Capa</FormLabel>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleCoverChange}
-                      p={1}
-                    />
-                    <FormHelperText>Tamanho recomendado: 1200x400 pixels</FormHelperText>
-                    
-                    {(coverPreview || (restaurant && restaurant.coverImage)) && (
-                      <Flex mt={4} justify="center" direction="column" align="center">
-                        <Box 
-                          border="1px solid" 
-                          borderColor="gray.200" 
-                          borderRadius="md" 
-                          p={2} 
-                          bg="white"
-                          maxW="100%"
-                          overflow="hidden"
-                        >
-                          <SafeImage 
-                            src={coverPreview || (restaurant?.coverImage ? `${API_URL}${restaurant.coverImage.startsWith('/') ? '' : '/'}${restaurant.coverImage}` : undefined)} 
-                            alt="Cover Preview" 
-                            style={{
-                              maxHeight: "150px",
-                              width: "100%",
-                              objectFit: "cover",
-                              borderRadius: "md"
-                            }}
-                          />
-                        </Box>
-                        <Text fontSize="sm" color="gray.500" mt={2}>
-                          Imagem de capa atual do restaurante
-                        </Text>
-                      </Flex>
-                    )}
-                  </FormControl>
-                </VStack>
-              </Box>
-            </SimpleGrid>
-            
-            {/* Nova seção para personalização do menu digital */}
+      <Box as="form" onSubmit={handleSubmit}>
+        <VStack spacing={6} align="stretch">
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
             <Box bg={bgColor} p={6} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
-              <Heading size="md" mb={2}>Personalização do Menu Digital</Heading>
-              <Text fontSize="sm" color="gray.500" mb={4}>
-                Personalize a aparência do cardápio digital do seu restaurante para combinar com a sua marca.
-              </Text>
+              <Heading size="md" mb={4}>Informações Básicas</Heading>
+              
+              <VStack spacing={4} align="stretch">
+                <FormControl id="name" isRequired>
+                  <FormLabel>Nome do Restaurante</FormLabel>
+                  <Input 
+                    name="name" 
+                    value={restaurant.name || ''} 
+                    onChange={handleInputChange} 
+                  />
+                </FormControl>
+                
+                <FormControl id="description">
+                  <FormLabel>Descrição</FormLabel>
+                  <Textarea 
+                    name="description" 
+                    value={restaurant.description || ''} 
+                    onChange={handleInputChange}
+                    rows={3}
+                  />
+                  <FormHelperText>Uma breve descrição do seu restaurante</FormHelperText>
+                </FormControl>
+                
+                <FormControl id="address">
+                  <FormLabel>Endereço</FormLabel>
+                  <Input 
+                    name="address" 
+                    value={restaurant.address || ''} 
+                    onChange={handleInputChange} 
+                  />
+                </FormControl>
+                
+                <FormControl id="phone">
+                  <FormLabel>Telefone</FormLabel>
+                  <Input 
+                    name="phone" 
+                    value={restaurant.phone || ''} 
+                    onChange={handleInputChange} 
+                  />
+                </FormControl>
+                
+                <FormControl id="operatingHours" mt={4}>
+                  <FormLabel>Horários de Funcionamento</FormLabel>
+                  <Box 
+                    borderWidth="1px" 
+                    borderRadius="md" 
+                    p={4} 
+                    bg={operatingHoursBgColor}
+                    borderColor={borderColor}
+                  >
+                    <VStack spacing={4} align="stretch">
+                      {Object.keys(operatingHours).map((day) => {
+                        const dayKey = day as keyof OperatingHours;
+                        const dayData = operatingHours[dayKey];
+                        
+                        return (
+                          <Box key={day} mb={4}>
+                            <Flex justify="space-between" align="center" mb={2}>
+                              <Box width="40%">
+                                <Flex align="center">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={dayData.isOpen} 
+                                    onChange={(e) => handleOperatingHourChange(dayKey, 'isOpen', e.target.checked)}
+                                    style={{ marginRight: '8px' }}
+                                  />
+                                  <Text fontWeight={dayData.isOpen ? "medium" : "normal"} color={dayData.isOpen ? "black" : "gray.500"}>
+                                    {dayData.day}
+                                  </Text>
+                                </Flex>
+                              </Box>
+                              
+                              {dayData.isOpen && (
+                                <Button 
+                                  size="sm" 
+                                  colorScheme="blue" 
+                                  onClick={() => addPeriod(dayKey)}
+                                  leftIcon={<Box as="span">+</Box>}
+                                >
+                                  Adicionar Período
+                                </Button>
+                              )}
+                            </Flex>
+                            
+                            {dayData.isOpen && dayData.periods.map((period, periodIndex) => (
+                              <Flex key={`${day}-${periodIndex}`} justify="space-between" align="center" ml={4} mb={2}>
+                                <Text mr={2} fontWeight="medium" fontSize="sm">Período {periodIndex + 1}:</Text>
+                                
+                                <Flex flex="1" justify="flex-end" align="center">
+                                  <Input 
+                                    type="time" 
+                                    value={period.open} 
+                                    onChange={(e) => handleOperatingHourChange(
+                                      dayKey, 
+                                      'periods', 
+                                      { key: 'open', val: e.target.value },
+                                      periodIndex
+                                    )}
+                                    size="sm"
+                                    width="120px"
+                                    isDisabled={!dayData.isOpen}
+                                    mr={2}
+                                  />
+                                  <Text mx={2} alignSelf="center" color={dayData.isOpen ? "black" : "gray.500"}>às</Text>
+                                  <Input 
+                                    type="time" 
+                                    value={period.close} 
+                                    onChange={(e) => handleOperatingHourChange(
+                                      dayKey, 
+                                      'periods', 
+                                      { key: 'close', val: e.target.value },
+                                      periodIndex
+                                    )}
+                                    size="sm"
+                                    width="120px"
+                                    isDisabled={!dayData.isOpen}
+                                  />
+                                  
+                                  {dayData.periods.length > 1 && (
+                                    <IconButton
+                                      aria-label="Remover período"
+                                      icon={<Box as="span">✕</Box>}
+                                      size="sm"
+                                      variant="ghost"
+                                      colorScheme="red"
+                                      ml={2}
+                                      onClick={() => removePeriod(dayKey, periodIndex)}
+                                    />
+                                  )}
+                                </Flex>
+                              </Flex>
+                            ))}
+                          </Box>
+                        );
+                      })}
+                    </VStack>
+                    
+                    <Box mt={4} p={3} bg="gray.50" borderRadius="md">
+                      <Text fontSize="sm" fontWeight="medium">Visualização:</Text>
+                      <Text fontSize="sm" mt={1}>{formatOperatingHoursForDisplay()}</Text>
+                    </Box>
+                    
+                    <Text fontSize="xs" mt={2} color="gray.500">
+                      Os horários de funcionamento serão usados para determinar se o restaurante está aberto ou fechado no menu digital.
+                      Você pode adicionar múltiplos períodos para cada dia, como almoço e jantar.
+                    </Text>
+                  </Box>
+                </FormControl>
+              </VStack>
+            </Box>
+            
+            <Box bg={bgColor} p={6} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+              <Heading size="md" mb={4}>Imagens</Heading>
               
               <VStack spacing={6} align="stretch">
-                <FormControl id="themeColor">
-                  <FormLabel>Cor do Tema</FormLabel>
-                  <Flex align="center">
-                    <Input
-                      type="color"
-                      name="themeColor"
-                      value={restaurant.themeColor || '#3182ce'}
-                      onChange={handleInputChange}
-                      w="80px"
-                      h="40px"
-                      p={1}
-                      cursor="pointer"
-                    />
-                    <Input
-                      name="themeColor"
-                      value={restaurant.themeColor || '#3182ce'}
-                      onChange={handleInputChange}
-                      ml={3}
-                      w="calc(100% - 80px)"
-                      placeholder="Cor personalizada (ex: #3182ce)"
-                    />
-                  </Flex>
-                  <FormHelperText>
-                    Escolha uma cor personalizada para o cardápio digital do seu restaurante. Esta cor será aplicada aos botões, ícones e elementos destacados.
-                  </FormHelperText>
+                <FormControl id="logo">
+                  <FormLabel>Logo do Restaurante</FormLabel>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                    p={1}
+                  />
+                  <FormHelperText>Tamanho recomendado: 200x200 pixels</FormHelperText>
                   
-                  {restaurant.themeColor && (
-                    <Box mt={3} p={3} borderRadius="md" boxShadow="sm" borderWidth="1px">
-                      <Text fontWeight="medium" mb={2}>Pré-visualização:</Text>
-                      <Flex flexWrap="wrap" gap={2}>
-                        <Box 
-                          w="80px" 
-                          h="30px" 
-                          borderRadius="md" 
-                          bg={restaurant.themeColor} 
-                          boxShadow="sm"
+                  {(logoPreview || (restaurant && restaurant.logo)) && (
+                    <Flex mt={4} justify="center" direction="column" align="center">
+                      <Box 
+                        border="1px solid" 
+                        borderColor="gray.200" 
+                        borderRadius="md" 
+                        p={2} 
+                        bg="white"
+                        maxW="200px"
+                        maxH="200px"
+                        overflow="hidden"
+                      >
+                        <SafeImage 
+                          src={logoPreview || (restaurant?.logo ? `${API_URL}${restaurant.logo.startsWith('/') ? '' : '/'}${restaurant.logo}` : undefined)} 
+                          alt="Logo Preview" 
+                          style={{
+                            maxHeight: "100px",
+                            maxWidth: "100%",
+                            objectFit: "contain"
+                          }}
                         />
-                        <Box 
-                          w="80px" 
-                          h="30px" 
-                          borderRadius="full" 
-                          bg={restaurant.themeColor} 
-                          boxShadow="sm"
-                        />
-                        <Button 
-                          size="sm" 
-                          bg={restaurant.themeColor} 
-                          color="white" 
-                          _hover={{ bg: `${restaurant.themeColor}e0` }}
-                        >
-                          Botão
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          borderColor={restaurant.themeColor} 
-                          color={restaurant.themeColor}
-                          _hover={{ bg: `${restaurant.themeColor}20` }}
-                        >
-                          Botão
-                        </Button>
-                      </Flex>
-                    </Box>
+                      </Box>
+                      <Text fontSize="sm" color="gray.500" mt={2}>
+                        Logo atual do restaurante
+                      </Text>
+                    </Flex>
                   )}
                 </FormControl>
                 
-                <Alert status="info" borderRadius="md">
-                  <AlertIcon />
-                  <Box>
-                    <AlertTitle>Dica de personalização</AlertTitle>
-                    <AlertDescription>
-                      Escolha uma cor que combine com a identidade visual do seu restaurante. 
-                      As alterações afetarão imediatamente a aparência do seu menu digital, 
-                      tornando-o mais atraente e consistente com a sua marca.
-                    </AlertDescription>
-                  </Box>
-                </Alert>
+                <FormControl id="coverImage">
+                  <FormLabel>Imagem de Capa</FormLabel>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCoverChange}
+                    p={1}
+                  />
+                  <FormHelperText>Tamanho recomendado: 1200x400 pixels</FormHelperText>
+                  
+                  {(coverPreview || (restaurant && restaurant.coverImage)) && (
+                    <Flex mt={4} justify="center" direction="column" align="center">
+                      <Box 
+                        border="1px solid" 
+                        borderColor="gray.200" 
+                        borderRadius="md" 
+                        p={2} 
+                        bg="white"
+                        maxW="100%"
+                        overflow="hidden"
+                      >
+                        <SafeImage 
+                          src={coverPreview || (restaurant?.coverImage ? `${API_URL}${restaurant.coverImage.startsWith('/') ? '' : '/'}${restaurant.coverImage}` : undefined)} 
+                          alt="Cover Preview" 
+                          style={{
+                            maxHeight: "150px",
+                            width: "100%",
+                            objectFit: "cover",
+                            borderRadius: "md"
+                          }}
+                        />
+                      </Box>
+                      <Text fontSize="sm" color="gray.500" mt={2}>
+                        Imagem de capa atual do restaurante
+                      </Text>
+                    </Flex>
+                  )}
+                </FormControl>
               </VStack>
             </Box>
+          </SimpleGrid>
+          
+          {/* Nova seção para personalização do menu digital */}
+          <Box bg={bgColor} p={6} borderRadius="md" boxShadow="sm" borderWidth="1px" borderColor={borderColor}>
+            <Heading size="md" mb={2}>Personalização do Menu Digital</Heading>
+            <Text fontSize="sm" color="gray.500" mb={4}>
+              Personalize a aparência do cardápio digital do seu restaurante para combinar com a sua marca.
+            </Text>
+            
+            <VStack spacing={6} align="stretch">
+              <FormControl id="themeColor">
+                <FormLabel>Cor do Tema</FormLabel>
+                <Flex align="center">
+                  <Input
+                    type="color"
+                    name="themeColor"
+                    value={restaurant.themeColor || '#3182ce'}
+                    onChange={handleInputChange}
+                    w="80px"
+                    h="40px"
+                    p={1}
+                    cursor="pointer"
+                  />
+                  <Input
+                    name="themeColor"
+                    value={restaurant.themeColor || '#3182ce'}
+                    onChange={handleInputChange}
+                    ml={3}
+                    w="calc(100% - 80px)"
+                    placeholder="Cor personalizada (ex: #3182ce)"
+                  />
+                </Flex>
+                <FormHelperText>
+                  Escolha uma cor personalizada para o cardápio digital do seu restaurante. Esta cor será aplicada aos botões, ícones e elementos destacados.
+                </FormHelperText>
+                
+                {restaurant.themeColor && (
+                  <Box mt={3} p={3} borderRadius="md" boxShadow="sm" borderWidth="1px">
+                    <Text fontWeight="medium" mb={2}>Pré-visualização:</Text>
+                    <Flex flexWrap="wrap" gap={2}>
+                      <Box 
+                        w="80px" 
+                        h="30px" 
+                        borderRadius="md" 
+                        bg={restaurant.themeColor} 
+                        boxShadow="sm"
+                      />
+                      <Box 
+                        w="80px" 
+                        h="30px" 
+                        borderRadius="full" 
+                        bg={restaurant.themeColor} 
+                        boxShadow="sm"
+                      />
+                      <Button 
+                        size="sm" 
+                        bg={restaurant.themeColor} 
+                        color="white" 
+                        _hover={{ bg: `${restaurant.themeColor}e0` }}
+                      >
+                        Botão
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        borderColor={restaurant.themeColor} 
+                        color={restaurant.themeColor}
+                        _hover={{ bg: `${restaurant.themeColor}20` }}
+                      >
+                        Botão
+                      </Button>
+                    </Flex>
+                  </Box>
+                )}
+              </FormControl>
+              
+              <Alert status="info" borderRadius="md">
+                <AlertIcon />
+                <Box>
+                  <AlertTitle>Dica de personalização</AlertTitle>
+                  <AlertDescription>
+                    Escolha uma cor que combine com a identidade visual do seu restaurante. 
+                    As alterações afetarão imediatamente a aparência do seu menu digital, 
+                    tornando-o mais atraente e consistente com a sua marca.
+                  </AlertDescription>
+                </Box>
+              </Alert>
+            </VStack>
+          </Box>
 
-            <Flex justify="flex-end">
-              <Button 
-                type="submit" 
-                colorScheme="blue" 
-                isLoading={isSaving}
-                loadingText="Salvando"
-                size="lg"
-              >
-                Salvar Alterações
-              </Button>
-            </Flex>
-          </VStack>
-        </Box>
+          <Flex justify="flex-end">
+            <Button 
+              type="submit" 
+              colorScheme="blue" 
+              isLoading={isSaving}
+              loadingText="Salvando"
+              size="lg"
+            >
+              Salvar Alterações
+            </Button>
+          </Flex>
+        </VStack>
       </Box>
-    </Layout>
+    </Box>
   );
 };
 

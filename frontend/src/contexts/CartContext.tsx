@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product } from '../types/product';
+import { Product, SelectedOption } from '../types/product';
+import couponService, { Coupon, ValidateCouponResponse } from '../services/couponService';
+import { useToast } from '@chakra-ui/react';
 
 interface CartItem {
   product: Product;
   quantity: number;
   notes?: string;
-  additionalOptions?: any[];
+  selectedOptions?: SelectedOption[];
 }
 
 interface CartContextData {
@@ -19,6 +21,13 @@ interface CartContextData {
   totalPrice: number;
   restaurantId: string | null;
   setRestaurantId: (id: string) => void;
+  coupon: Coupon | null;
+  couponCode: string;
+  setCouponCode: (code: string) => void;
+  applyCoupon: () => Promise<void>;
+  removeCoupon: () => void;
+  discount: number;
+  finalPrice: number;
 }
 
 const CartContext = createContext<CartContextData>({} as CartContextData);
@@ -30,11 +39,16 @@ interface CartProviderProps {
 export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [coupon, setCoupon] = useState<Coupon | null>(null);
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [discount, setDiscount] = useState<number>(0);
+  const toast = useToast();
 
   // Load cart from localStorage on initial render
   useEffect(() => {
     const storedCart = localStorage.getItem('@Atende:cart');
     const storedRestaurantId = localStorage.getItem('@Atende:cartRestaurantId');
+    const storedCoupon = localStorage.getItem('@Atende:cartCoupon');
     
     if (storedCart) {
       setItems(JSON.parse(storedCart));
@@ -42,6 +56,12 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     
     if (storedRestaurantId) {
       setRestaurantId(storedRestaurantId);
+    }
+
+    if (storedCoupon) {
+      const { coupon, discount } = JSON.parse(storedCoupon);
+      setCoupon(coupon);
+      setDiscount(discount);
     }
   }, []);
 
@@ -51,6 +71,8 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       localStorage.setItem('@Atende:cart', JSON.stringify(items));
     } else {
       localStorage.removeItem('@Atende:cart');
+      // Se o carrinho estiver vazio, também remover o cupom
+      removeCoupon();
     }
   }, [items]);
 
@@ -63,19 +85,47 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     }
   }, [restaurantId]);
 
+  // Save coupon to localStorage whenever it changes
+  useEffect(() => {
+    if (coupon) {
+      localStorage.setItem('@Atende:cartCoupon', JSON.stringify({ coupon, discount }));
+    } else {
+      localStorage.removeItem('@Atende:cartCoupon');
+    }
+  }, [coupon, discount]);
+
   const addItem = (item: CartItem) => {
-    // Check if item already exists in cart
-    const existingItemIndex = items.findIndex(
-      cartItem => cartItem.product.id === item.product.id
-    );
+    // Verificar se já existe um item com o mesmo produto e as mesmas opções
+    const existingItemIndex = items.findIndex(cartItem => {
+      // Verificar se é o mesmo produto
+      if (cartItem.product.id !== item.product.id) return false;
+      
+      // Se não tiver opções selecionadas, é o mesmo item
+      if (!item.selectedOptions?.length && !cartItem.selectedOptions?.length) return true;
+      
+      // Se um tem opções e o outro não, são diferentes
+      if ((!item.selectedOptions?.length && cartItem.selectedOptions?.length) || 
+          (item.selectedOptions?.length && !cartItem.selectedOptions?.length)) return false;
+      
+      // Se têm números diferentes de opções, são diferentes
+      if (item.selectedOptions?.length !== cartItem.selectedOptions?.length) return false;
+      
+      // Comparar cada opção selecionada
+      return item.selectedOptions?.every(selectedOption => {
+        return cartItem.selectedOptions?.some(existingOption => 
+          existingOption.groupName === selectedOption.groupName && 
+          existingOption.option.name === selectedOption.option.name
+        );
+      });
+    });
 
     if (existingItemIndex >= 0) {
-      // Update quantity if item exists
+      // Atualizar quantidade se o item já existe
       const updatedItems = [...items];
       updatedItems[existingItemIndex].quantity += item.quantity;
       setItems(updatedItems);
     } else {
-      // Add new item
+      // Adicionar novo item
       setItems([...items, item]);
     }
   };
@@ -113,15 +163,87 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
 
   const clearCart = () => {
     setItems([]);
+    removeCoupon();
     localStorage.removeItem('@Atende:cart');
+  };
+
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, informe um código de cupom',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (!restaurantId) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível identificar o restaurante',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      const result = await couponService.validateCoupon(
+        couponCode,
+        restaurantId,
+        totalPrice
+      );
+      
+      setCoupon(result.coupon);
+      setDiscount(result.discount);
+      setCouponCode('');
+      
+      toast({
+        title: 'Cupom aplicado',
+        description: `Desconto de R$ ${result.discount.toFixed(2)} aplicado ao pedido`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível aplicar o cupom',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const removeCoupon = () => {
+    setCoupon(null);
+    setDiscount(0);
+    setCouponCode('');
   };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  const totalPrice = items.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0
-  );
+  const totalPrice = items.reduce((total, item) => {
+    // Preço base do produto x quantidade
+    let itemTotal = item.product.price * item.quantity;
+    
+    // Adicionar preço dos complementos, se houver
+    if (item.selectedOptions && item.selectedOptions.length > 0) {
+      const optionsTotal = item.selectedOptions.reduce(
+        (sum, option) => sum + option.option.price, 
+        0
+      );
+      itemTotal += optionsTotal * item.quantity;
+    }
+    
+    return total + itemTotal;
+  }, 0);
+
+  const finalPrice = Math.max(totalPrice - discount, 0);
 
   return (
     <CartContext.Provider
@@ -136,6 +258,13 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         totalPrice,
         restaurantId,
         setRestaurantId,
+        coupon,
+        couponCode,
+        setCouponCode,
+        applyCoupon,
+        removeCoupon,
+        discount,
+        finalPrice,
       }}
     >
       {children}

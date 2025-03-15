@@ -55,7 +55,8 @@ import {
   Tooltip,
   FormHelperText,
 } from '@chakra-ui/react';
-import { AddIcon, MinusIcon, DeleteIcon, InfoIcon } from '@chakra-ui/icons';
+import { AddIcon, MinusIcon, DeleteIcon } from '@chakra-ui/icons';
+import { InfoIcon } from '@chakra-ui/icons';
 import { useCart } from '../../contexts/CartContext';
 import { Product } from '../../types/product';
 import { Category } from '../../types/category';
@@ -70,6 +71,10 @@ import CategoryProducts from '../../components/CategoryProducts';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { customersService } from '../../services/customersService';
 import api from '../../services/api';
+import { useRestaurant } from '../../contexts/RestaurantContext';
+import ProductOptionsSelector from '../../components/ProductOptionsSelector';
+import { SelectedOption } from '../../types/product';
+import { OptionGroup } from '../../types/product';
 
 // Obter a URL base da API
 // Primeiro tenta usar a variável de ambiente, depois tenta obter do servidor atual, ou usa uma URL fixa
@@ -108,6 +113,7 @@ interface DeliveryFormData {
   complement?: string;
   reference?: string;
   changeFor?: number; // Para troco em caso de pagamento em dinheiro
+  couponCode?: string; // Código do cupom
 }
 
 // Adicionar função para verificar se o restaurante está aberto
@@ -184,7 +190,7 @@ const isRestaurantOpen = (operatingHoursString?: string): boolean => {
 // Componente principal do cardápio digital
 const Menu: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [localRestaurantId, setLocalRestaurantId] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -193,21 +199,31 @@ const Menu: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [restaurantInfo, setRestaurantInfo] = useState<any>(null);
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
-  const [isOpen, setIsOpen] = useState(true); // Estado para controlar se o restaurante está aberto
+  const [isOpen, setIsOpen] = useState(true);
   
   const { 
     items, 
     addItem, 
     removeItem, 
     updateItemQuantity, 
+    updateItemNotes, 
+    clearCart, 
     totalItems, 
     totalPrice,
-    setRestaurantId: setCartRestaurantId,
-    clearCart
+    restaurantId: cartRestaurantId,
+    setRestaurantId,
+    coupon,
+    couponCode,
+    setCouponCode,
+    applyCoupon,
+    removeCoupon,
+    discount,
+    finalPrice
   } = useCart();
   
   const navigate = useNavigate();
   const toast = useToast();
+  const { isOpen: isRestaurantOpen, themeColor, setThemeColor } = useRestaurant();
   
   // Modais e drawers
   const { 
@@ -275,8 +291,23 @@ const Menu: React.FC = () => {
   // Estado para armazenar os dados do cliente durante o checkout
   const [customerFormData, setCustomerFormData] = useState<CustomerFormData | null>(null);
   
-  // Estado para armazenar a cor do tema do restaurante
-  const [themeColor, setThemeColor] = useState<string>('#3182ce');
+  // Adicionar estado para as opções selecionadas
+  const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
+  
+  // Função para navegar para a página de cupons
+  const handleNavigateToCoupons = () => {
+    if (cartRestaurantId) {
+      navigate(`/restaurants/${cartRestaurantId}/coupons`);
+    } else {
+      toast({
+        title: "Erro",
+        description: "Não foi possível acessar os cupons",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
   
   // Buscar dados do restaurante e produtos
   useEffect(() => {
@@ -288,7 +319,8 @@ const Menu: React.FC = () => {
         
         // Buscar informações do restaurante pelo slug
         const restaurant = await restaurantService.getBySlug(slug);
-        setRestaurantId(restaurant.id);
+        setLocalRestaurantId(restaurant.id);
+        setRestaurantId(restaurant.id); // Atualizar o ID no contexto do carrinho
         
         // Verificar se o restaurante possui uma cor personalizada
         if (restaurant.themeColor) {
@@ -375,7 +407,7 @@ const Menu: React.FC = () => {
         console.log('RestaurantInfo com URLs completas:', restaurantInfo);
         
         setRestaurantInfo(restaurantInfo);
-        setCartRestaurantId(restaurant.id);
+        setLocalRestaurantId(restaurant.id);
         
         // Buscar categorias
         const categoriesData = await menuService.getCategories(restaurant.id);
@@ -429,7 +461,7 @@ const Menu: React.FC = () => {
     };
     
     fetchData();
-  }, [slug, setCartRestaurantId, toast, themeColor]);
+  }, [slug, setLocalRestaurantId, setRestaurantId, toast, themeColor]);
   
   // Adicione este console.log para depuração
   useEffect(() => {
@@ -447,15 +479,107 @@ const Menu: React.FC = () => {
     }
   }, [restaurantInfo]);
   
-  // Abrir modal de produto
+  // Adicionar este useEffect após os outros useEffect existentes
+  useEffect(() => {
+    if (selectedProduct && selectedProduct.additionalOptions) {
+      console.log('UseEffect - additionalOptions no selectedProduct:', selectedProduct.additionalOptions);
+      
+      // Se additionalOptions for uma string, tentar fazer o parse para objeto
+      if (typeof selectedProduct.additionalOptions === 'string' && (selectedProduct.additionalOptions as string).trim() !== '') {
+        try {
+          const parsedOptions = JSON.parse(selectedProduct.additionalOptions as string);
+          console.log('UseEffect - additionalOptions parseado:', parsedOptions);
+          setSelectedProduct({
+            ...selectedProduct,
+            additionalOptions: parsedOptions
+          });
+        } catch (error) {
+          console.error('UseEffect - Erro ao parsear additionalOptions:', error);
+        }
+      }
+    }
+  }, [selectedProduct?.id]);
+  
+  // Adicionar este useEffect para logar os complementos processados
+  useEffect(() => {
+    if (selectedProduct) {
+      console.log('Produto selecionado:', selectedProduct.name);
+      console.log('additionalOptions (tipo):', typeof selectedProduct.additionalOptions);
+      console.log('additionalOptions (valor):', selectedProduct.additionalOptions);
+      const processedOptions = getProcessedOptionGroups(selectedProduct.additionalOptions);
+      console.log('additionalOptions processado:', processedOptions);
+      console.log('Número de grupos de opções:', processedOptions.length);
+      if (processedOptions.length > 0) {
+        console.log('Primeiro grupo:', processedOptions[0]);
+      }
+    }
+  }, [selectedProduct]);
+  
+  // Abrir modal de produto - atualizar para limpar as opções selecionadas
   const handleOpenProductModal = (product: Product) => {
-    setSelectedProduct(product);
+    console.log('Abrindo modal para produto:', product);
+    console.log('additionalOptions original:', product.additionalOptions);
+    console.log('Tipo do additionalOptions:', typeof product.additionalOptions);
+    
+    // Processar additionalOptions se necessário
+    let processedProduct = { ...product };
+    
+    if (product.additionalOptions) {
+      try {
+        // Se for string, tentar fazer parse para interpretar corretamente
+        if (typeof product.additionalOptions === 'string' && (product.additionalOptions as string).trim() !== '') {
+          console.log('Tentando fazer parse de string:', product.additionalOptions);
+          const parsed = JSON.parse(product.additionalOptions as string);
+          console.log('Resultado do parse:', parsed);
+          processedProduct.additionalOptions = Array.isArray(parsed) ? parsed : [parsed];
+        } 
+        // Se já for um array, usar diretamente
+        else if (Array.isArray(product.additionalOptions)) {
+          console.log('additionalOptions já é um array:', product.additionalOptions);
+          processedProduct.additionalOptions = product.additionalOptions;
+        }
+        // Se for um objeto único, converter para array
+        else if (product.additionalOptions && typeof product.additionalOptions === 'object') {
+          console.log('additionalOptions é um objeto único:', product.additionalOptions);
+          processedProduct.additionalOptions = [product.additionalOptions];
+        }
+        
+        // Validar a estrutura dos grupos
+        if (Array.isArray(processedProduct.additionalOptions)) {
+          processedProduct.additionalOptions = processedProduct.additionalOptions.filter(group => {
+            const isValid = group && 
+              typeof group === 'object' && 
+              'name' in group && 
+              'options' in group && 
+              Array.isArray(group.options);
+            
+            if (!isValid) {
+              console.warn('Grupo inválido encontrado:', group);
+            }
+            
+            return isValid;
+          });
+        }
+        
+        console.log('additionalOptions processado final:', processedProduct.additionalOptions);
+      } catch (error) {
+        console.error('Erro ao processar additionalOptions:', error);
+        processedProduct.additionalOptions = [];
+      }
+    } else {
+      console.log('Produto não possui additionalOptions');
+      processedProduct.additionalOptions = [];
+    }
+    
+    // Limpar seleções anteriores
+    setSelectedProduct(processedProduct);
     setQuantity(1);
     setNotes('');
+    setSelectedOptions([]);
     onProductModalOpen();
   };
   
-  // Adicionar produto ao carrinho
+  // Adicionar produto ao carrinho - atualizar para incluir as opções selecionadas
   const handleAddToCart = () => {
     if (!selectedProduct) {
       toast({
@@ -480,15 +604,60 @@ const Menu: React.FC = () => {
       return;
     }
     
+    // Verificar se additionalOptions é um array válido
+    const hasValidAdditionalOptions = selectedProduct.additionalOptions && 
+                                      Array.isArray(selectedProduct.additionalOptions) && 
+                                      selectedProduct.additionalOptions.length > 0;
+    
+    // Log para depuração
+    console.log('Product additionalOptions:', selectedProduct.additionalOptions);
+    console.log('Selected options:', selectedOptions);
+    
+    // Verificar se há grupos de opções obrigatórios sem seleção
+    if (hasValidAdditionalOptions) {
+      // Usando type assertion para garantir que o TypeScript saiba que additionalOptions é um array
+      const additionalOptions = selectedProduct.additionalOptions as OptionGroup[];
+      const requiredGroups = additionalOptions.filter(group => group.required);
+      
+      const missingRequiredGroups = requiredGroups.filter(group => {
+        // Verificar se existe alguma opção selecionada para este grupo
+        return !selectedOptions.some(selected => selected.groupName === group.name);
+      });
+      
+      if (missingRequiredGroups.length > 0) {
+        toast({
+          title: 'Complementos obrigatórios',
+          description: `Por favor, selecione as opções obrigatórias: ${missingRequiredGroups.map(g => g.name).join(', ')}`,
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+    }
+    
+    // Adicionar o item ao carrinho
     addItem({
       product: selectedProduct,
       quantity: quantity,
       notes: notes,
+      selectedOptions: selectedOptions,
     });
+    
+    // Calcular preço total incluindo os complementos
+    let totalWithOptions = selectedProduct.price;
+    selectedOptions.forEach(option => {
+      totalWithOptions += option.option.price;
+    });
+    
+    const formattedTotalPrice = new Intl.NumberFormat('pt-BR', { 
+      style: 'currency', 
+      currency: 'BRL' 
+    }).format(totalWithOptions * quantity);
     
     toast({
       title: 'Produto adicionado',
-      description: `${selectedProduct.name} foi adicionado à sacola.`,
+      description: `${selectedProduct.name} foi adicionado à sacola por ${formattedTotalPrice}.`,
       status: 'success',
       duration: 2000,
       isClosable: true,
@@ -499,10 +668,23 @@ const Menu: React.FC = () => {
     setSelectedProduct(null);
     setQuantity(1);
     setNotes('');
+    setSelectedOptions([]);
   };
   
   // Iniciar processo de checkout
   const handleStartCheckout = () => {
+    // Verificar se o restaurante está aberto antes de iniciar o checkout
+    if (!isRestaurantOpen) {
+      toast({
+        title: 'Restaurante fechado',
+        description: 'O restaurante está fechado no momento. Não é possível realizar pedidos.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      return;
+    }
+
     setCheckoutStep(1);
     onCheckoutModalOpen();
     setTimeout(() => {
@@ -591,12 +773,12 @@ const Menu: React.FC = () => {
         const saveToDatabase = async () => {
           try {
             // Verificar se temos o ID do restaurante correto
-            if (!restaurantId) {
+            if (!cartRestaurantId) {
               console.error('ID do restaurante não disponível, não é possível salvar o cliente');
               return;
             }
             
-            console.log('Usando restaurante ID:', restaurantId, 'para salvar o cliente:', customerData);
+            console.log('Usando restaurante ID:', cartRestaurantId, 'para salvar o cliente:', customerData);
             
             // Formatar o número de telefone (remover caracteres não numéricos)
             const formattedPhone = customerData.phone.replace(/\D/g, '');
@@ -607,19 +789,19 @@ const Menu: React.FC = () => {
               name: customerData.name || 'Cliente',
               email: `${phoneWithPrefix.substring(0, 6)}@cliente.temp`,
               phone: phoneWithPrefix,
-              restaurantId: restaurantId // Usar o ID do restaurante atual
+              restaurantId: cartRestaurantId
             };
             
             console.log('Dados do cliente para criação:', customerToCreate);
             
             // Usar a API diretamente para evitar problemas de validação
-            const response = await api.post(`/restaurants/${restaurantId}/customers`, {
+            const customerResponse = await api.post(`/restaurants/${cartRestaurantId}/customers`, {
               name: customerToCreate.name,
               email: customerToCreate.email,
               phone: customerToCreate.phone
             });
             
-            console.log('Cliente salvo no banco de dados com sucesso:', response.data);
+            console.log('Cliente salvo no banco de dados com sucesso:', customerResponse.data);
           } catch (error) {
             console.error('Erro ao salvar cliente no banco:', error);
             // Não interromper o fluxo principal
@@ -636,25 +818,37 @@ const Menu: React.FC = () => {
   // Atualizar processamento do pedido para salvar o cliente
   const handleDeliveryFormSubmitWithSave = async (deliveryData: DeliveryFormData) => {
     try {
-      // Verificar se o método de entrega e o método de pagamento foram selecionados
-      if (!deliveryData.deliveryMethod) {
+      // Verificar se o restaurante está aberto antes de processar o pedido
+      if (!isRestaurantOpen) {
         toast({
-          title: 'Método de entrega não selecionado',
-          description: 'Por favor, selecione um método de entrega para continuar.',
+          title: 'Restaurante fechado',
+          description: 'O restaurante está fechado no momento. Não é possível finalizar o pedido.',
           status: 'error',
-          duration: 3000,
+          duration: 5000,
           isClosable: true,
         });
         return;
       }
 
+      // Verificar se o método de entrega e o método de pagamento foram selecionados
+      if (!deliveryData.deliveryMethod) {
+      toast({
+          title: 'Erro',
+          description: 'Por favor, selecione um método de entrega',
+        status: 'error',
+          duration: 3000,
+        isClosable: true,
+        });
+        return;
+      }
+
       if (!deliveryData.paymentMethod) {
-        toast({
+      toast({
           title: 'Forma de pagamento não selecionada',
           description: 'Por favor, selecione uma forma de pagamento para continuar.',
-          status: 'error',
+        status: 'error',
           duration: 3000,
-          isClosable: true,
+        isClosable: true,
         });
         return;
       }
@@ -683,7 +877,16 @@ const Menu: React.FC = () => {
       const orderItems = items.map(item => ({
         productId: item.product.id,
         quantity: item.quantity,
-        notes: item.notes
+        notes: item.notes,
+        // Incluir os complementos selecionados
+        additionalOptions: item.selectedOptions ? item.selectedOptions.reduce((acc, option) => {
+          // Criar um objeto com os complementos selecionados
+          acc[option.groupName] = {
+            name: option.option.name,
+            price: option.option.price
+          };
+          return acc;
+        }, {} as Record<string, any>) : {}
       }));
       
       // Criar objeto de pedido
@@ -696,7 +899,8 @@ const Menu: React.FC = () => {
         changeFor: deliveryData.changeFor,
         deliveryAddress: deliveryData.deliveryMethod === 'delivery' 
           ? `${deliveryData.address}, ${deliveryData.complement || ''} - Ref: ${deliveryData.reference || ''}` 
-          : undefined
+          : undefined,
+        couponCode: coupon ? coupon.code : undefined
       };
       
       // Salvar nome e telefone no localStorage para o modo de demonstração
@@ -713,12 +917,14 @@ const Menu: React.FC = () => {
       });
       
       // Enviar pedido para o backend
-      if (!restaurantId) {
+      if (!cartRestaurantId) {
         throw new Error('ID do restaurante não encontrado');
       }
       
-      const response = await menuService.createOrder(restaurantId, orderData);
-      const orderId = response.id;
+      // Garantir que cartRestaurantId é uma string
+      const restaurantId: string = cartRestaurantId;
+      const orderResponse = await menuService.createOrder(restaurantId, orderData);
+      const orderId = orderResponse.id;
       
       // Salvar informações do cliente e pedido
       const customerData = {
@@ -1145,18 +1351,71 @@ const Menu: React.FC = () => {
               </HStack>
             </FormControl>
             
-            <FormControl width="100%">
-              <FormLabel fontWeight="medium">Observações</FormLabel>
+            {/* Exibir o ProductOptionsSelector e adicionar logs para depuração */}
+            {selectedProduct && (
+              <Box mt={4}>
+                {(() => {
+                  // Obter os complementos processados
+                  let processedOptions = [];
+                  
+                  try {
+                    // Se additionalOptions for uma string, tentar fazer parse
+                    if (typeof selectedProduct.additionalOptions === 'string') {
+                      const parsed = JSON.parse(selectedProduct.additionalOptions);
+                      processedOptions = Array.isArray(parsed) ? parsed : [parsed];
+                    } 
+                    // Se já for um array, usar diretamente
+                    else if (Array.isArray(selectedProduct.additionalOptions)) {
+                      processedOptions = selectedProduct.additionalOptions;
+                    }
+                    // Se for um objeto único, converter para array
+                    else if (selectedProduct.additionalOptions && typeof selectedProduct.additionalOptions === 'object') {
+                      processedOptions = [selectedProduct.additionalOptions];
+                    }
+                    
+                    // Validar a estrutura dos grupos
+                    processedOptions = processedOptions.filter(group => 
+                      group && 
+                      typeof group === 'object' && 
+                      'name' in group && 
+                      'options' in group && 
+                      Array.isArray(group.options)
+                    );
+                    
+                    console.log('Complementos processados para exibição:', processedOptions);
+                  } catch (error) {
+                    console.error('Erro ao processar complementos:', error);
+                    processedOptions = [];
+                  }
+                  
+                  // Verificar se temos complementos válidos
+                  if (processedOptions.length > 0) {
+                    return (
+                      <ProductOptionsSelector 
+                        optionGroups={processedOptions} 
+                        onOptionsChange={setSelectedOptions}
+                      />
+                    );
+                  } else {
+                    return (
+                      <Box p={4} borderWidth="1px" borderRadius="md" borderColor="gray.200" mt={2}>
+                        <Text color="gray.500" fontSize="sm" mb={2}>
+                          Este produto não possui complementos disponíveis.
+                        </Text>
+                      </Box>
+                    );
+                  }
+                })()}
+              </Box>
+            )}
+            
+            <FormControl mt={4}>
+              <FormLabel fontWeight="medium">Observações (opcional)</FormLabel>
               <Textarea 
-                placeholder="Ex: Sem cebola, bem passado, etc."
+                placeholder="Ex: Sem cebola, sem tomate, etc."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                borderRadius="md"
-                rows={3}
-                width="100%"
-                resize="vertical"
-                borderColor="gray.300"
-                _focus={{ borderColor: 'blue.500', boxShadow: '0 0 0 1px blue.500' }}
+                maxH="100px"
               />
             </FormControl>
           </Box>
@@ -1365,26 +1624,26 @@ const Menu: React.FC = () => {
         onClose={onCheckoutModalClose}
         title={checkoutStep === 1 ? "Dados do Cliente" : "Finalizar Pedido"}
       >
-        {checkoutStep === 1 ? (
+            {checkoutStep === 1 ? (
           <form onSubmit={handleSubmitCustomer(onCustomerFormSubmit)}>
-            <VStack spacing={4}>
+                <VStack spacing={4}>
               <FormControl isInvalid={!!customerErrors.name}>
                 <FormLabel>Nome</FormLabel>
-                <Input 
-                  {...registerCustomer('name', { required: 'Nome é obrigatório' })}
-                  placeholder="Seu nome completo"
-                />
-                <FormErrorMessage>
-                  {customerErrors.name?.message}
-                </FormErrorMessage>
-              </FormControl>
-              
+                    <Input 
+                      {...registerCustomer('name', { required: 'Nome é obrigatório' })}
+                      placeholder="Seu nome completo"
+                    />
+                    <FormErrorMessage>
+                      {customerErrors.name?.message}
+                    </FormErrorMessage>
+                  </FormControl>
+                  
               <FormControl isInvalid={!!customerErrors.phone}>
                 <FormLabel>Telefone</FormLabel>
-                <Input 
-                  {...registerCustomer('phone', { 
-                    required: 'Telefone é obrigatório',
-                    pattern: {
+                    <Input 
+                      {...registerCustomer('phone', { 
+                        required: 'Telefone é obrigatório',
+                        pattern: {
                       value: /^\d{10,11}$/,
                       message: 'Telefone inválido'
                     }
@@ -1395,14 +1654,14 @@ const Menu: React.FC = () => {
                     e.target.value = value;
                     if (value.length >= 10) {
                       checkExistingCustomer(value);
-                    }
-                  }}
-                />
-                <FormErrorMessage>
-                  {customerErrors.phone?.message}
-                </FormErrorMessage>
-              </FormControl>
-              
+                        }
+                      }}
+                    />
+                    <FormErrorMessage>
+                      {customerErrors.phone?.message}
+                    </FormErrorMessage>
+                  </FormControl>
+                  
               <Button
                 colorScheme="blue"
                 width="100%"
@@ -1424,9 +1683,9 @@ const Menu: React.FC = () => {
               >
                 Continuar
               </Button>
-            </VStack>
-          </form>
-        ) : (
+                </VStack>
+              </form>
+            ) : (
           <form onSubmit={handleSubmitDelivery(handleDeliveryFormSubmitWithSave)}>
             <VStack spacing={4}>
               <FormControl>
@@ -1482,7 +1741,7 @@ const Menu: React.FC = () => {
                             bg={themeColor} 
                           />
                         )}
-                      </Box>
+                          </Box>
                       <Text fontWeight="medium" fontSize="sm">🏬 Retirar no Local</Text>
                     </Flex>
                   </Box>
@@ -1492,7 +1751,7 @@ const Menu: React.FC = () => {
                     onClick={() => {
                       if (watchDelivery('deliveryMethod') === 'delivery') {
                         setDeliveryValue('deliveryMethod', undefined);
-                      } else {
+                                } else {
                         setDeliveryValue('deliveryMethod', 'delivery');
                       }
                     }}
@@ -1517,7 +1776,7 @@ const Menu: React.FC = () => {
                         borderColor={watchDelivery('deliveryMethod') === 'delivery' ? themeColor : 'gray.300'}
                         w="20px" 
                         h="20px" 
-                        mr={2}
+                            mr={2}
                         position="relative"
                         display="flex"
                         alignItems="center"
@@ -1542,7 +1801,7 @@ const Menu: React.FC = () => {
                     onClick={() => {
                       if (watchDelivery('deliveryMethod') === 'dineIn') {
                         setDeliveryValue('deliveryMethod', undefined);
-                      } else {
+                              } else {
                         setDeliveryValue('deliveryMethod', 'dineIn');
                       }
                     }}
@@ -1584,7 +1843,7 @@ const Menu: React.FC = () => {
                         )}
                       </Box>
                       <Text fontWeight="medium" fontSize="sm">🍽️ Consumir no Local</Text>
-                    </Flex>
+                        </Flex>
                   </Box>
                 </Flex>
                 {!watchDelivery('deliveryMethod') && (
@@ -1592,8 +1851,8 @@ const Menu: React.FC = () => {
                     Selecione um método de entrega
                   </FormHelperText>
                 )}
-              </FormControl>
-
+                      </FormControl>
+                      
               {watchDelivery('deliveryMethod') === 'delivery' && (
                 <Box 
                   p={4} 
@@ -1622,35 +1881,35 @@ const Menu: React.FC = () => {
                 >
                   <FormControl isInvalid={!!deliveryErrors.address} mb={4}>
                     <FormLabel>Endereço</FormLabel>
-                      <Input 
-                      {...registerDelivery('address', { 
-                        required: 'Endereço é obrigatório para entrega' 
-                      })}
-                      placeholder="Rua, número, bairro"
+                        <Input 
+                          {...registerDelivery('address', { 
+                            required: 'Endereço é obrigatório para entrega' 
+                          })}
+                          placeholder="Rua, número, bairro"
                       bg="white"
-                    />
-                    <FormErrorMessage>
-                      {deliveryErrors.address?.message}
-                    </FormErrorMessage>
-                  </FormControl>
-                  
+                        />
+                        <FormErrorMessage>
+                          {deliveryErrors.address?.message}
+                        </FormErrorMessage>
+                      </FormControl>
+                      
                   <FormControl mb={4}>
                     <FormLabel>Complemento</FormLabel>
-                    <Input 
-                      {...registerDelivery('complement')}
+                        <Input 
+                          {...registerDelivery('complement')}
                       placeholder="Apartamento, bloco, etc."
                       bg="white"
-                    />
-                  </FormControl>
-                  
-                  <FormControl>
+                        />
+                      </FormControl>
+                      
+                      <FormControl>
                     <FormLabel>Ponto de Referência</FormLabel>
-                    <Input 
-                      {...registerDelivery('reference')}
-                      placeholder="Próximo a..."
+                        <Input 
+                          {...registerDelivery('reference')}
+                          placeholder="Próximo a..."
                       bg="white"
-                    />
-                  </FormControl>
+                        />
+                      </FormControl>
                 </Box>
               )}
 
@@ -1710,8 +1969,8 @@ const Menu: React.FC = () => {
                       </Box>
                       <Text fontWeight="medium" fontSize="sm">💸 PIX</Text>
                     </Flex>
-                  </Box>
-
+          </Box>
+          
                   {/* Opção Cartão de Crédito */}
                   <Box 
                     onClick={() => {
@@ -1764,16 +2023,16 @@ const Menu: React.FC = () => {
 
                   {/* Opção Cartão de Débito */}
                   <Box 
-                    onClick={() => {
+              onClick={() => {
                       if (watchDelivery('paymentMethod') === 'debit') {
                         setDeliveryValue('paymentMethod', undefined);
-                      } else {
+                } else {
                         setDeliveryValue('paymentMethod', 'debit');
                       }
                     }}
                     cursor="pointer"
                     borderWidth="2px"
-                    borderRadius="md"
+              borderRadius="md"
                     borderColor={watchDelivery('paymentMethod') === 'debit' ? themeColor : 'gray.200'}
                     bg={watchDelivery('paymentMethod') === 'debit' ? `${themeColor}10` : 'white'}
                     p={3}
@@ -1907,6 +2166,127 @@ const Menu: React.FC = () => {
                 </Box>
               )}
 
+              {/* Adicionar campo de cupom */}
+              <Box 
+                width="100%" 
+                p={4} 
+                bg="gray.50" 
+                borderRadius="md" 
+                borderWidth="1px" 
+                borderColor="gray.200"
+                mt={4}
+              >
+                <FormControl>
+                  <FormLabel fontWeight="bold" mb={3}>Cupom de Desconto</FormLabel>
+                  <Flex>
+                    <Input
+                      placeholder="Digite o código do cupom"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
+                      mr={2}
+                      bg="white"
+                      size="lg"
+                      borderRadius="md"
+                      borderColor="gray.300"
+                      _hover={{ 
+                        borderColor: themeColor
+                      }}
+                      _focus={{
+                        borderColor: themeColor,
+                        boxShadow: `0 0 0 1px ${themeColor}`
+                      }}
+                    />
+              <Button 
+                      onClick={() => applyCoupon()}
+                colorScheme="blue" 
+                      size="lg"
+                px={8}
+                      height="48px"
+                      bgGradient={`linear(to-r, ${themeColor}, ${themeColor}cc)`}
+                _hover={{ 
+                        bgGradient: `linear(to-r, ${themeColor}cc, ${themeColor})`,
+                        transform: 'translateY(-1px)',
+                        boxShadow: 'md'
+                }}
+                _active={{
+                  transform: 'translateY(0)',
+                        boxShadow: 'sm'
+                }}
+                transition="all 0.2s"
+              >
+                      Aplicar
+              </Button>
+                  </Flex>
+                  {coupon && (
+                    <Flex mt={3} justifyContent="space-between" alignItems="center" bg="green.50" p={3} borderRadius="md">
+                      <Text fontSize="sm" fontWeight="bold" color="green.600">
+                        Cupom {coupon.code} aplicado: 
+                        {coupon.type === 'percentage' 
+                          ? ` ${coupon.value}% de desconto` 
+                          : ` R$ ${coupon.value.toFixed(2)} de desconto`}
+                      </Text>
+                      <Button
+                        size="sm"
+                        colorScheme="red"
+                        variant="ghost"
+                        onClick={() => removeCoupon()}
+                        _hover={{
+                          bg: 'red.50'
+                        }}
+                      >
+                        Remover
+                      </Button>
+                    </Flex>
+                  )}
+                </FormControl>
+              </Box>
+
+              {/* Resumo do pedido */}
+              <Box 
+                width="100%" 
+                p={4} 
+                bg="gray.50" 
+                borderRadius="md" 
+                borderWidth="1px" 
+                borderColor="gray.200"
+                mt={4}
+              >
+                <Heading size="sm" mb={3}>Resumo do Pedido</Heading>
+                <Flex justify="space-between" width="100%" mb={2}>
+                  <Text>Subtotal:</Text>
+                  <Text>
+                    {new Intl.NumberFormat('pt-BR', { 
+                      style: 'currency', 
+                      currency: 'BRL' 
+                    }).format(totalPrice)}
+                  </Text>
+                </Flex>
+                
+                {discount > 0 && (
+                  <Flex justify="space-between" width="100%" mb={2} color="green.500">
+                    <Text>Desconto:</Text>
+                    <Text>
+                      - {new Intl.NumberFormat('pt-BR', { 
+                        style: 'currency', 
+                        currency: 'BRL' 
+                      }).format(discount)}
+                    </Text>
+                  </Flex>
+                )}
+                
+                <Divider my={2} />
+                
+                <Flex justify="space-between" width="100%" fontWeight="bold">
+                  <Text>Total:</Text>
+                  <Text color={themeColor}>
+                    {new Intl.NumberFormat('pt-BR', { 
+                      style: 'currency', 
+                      currency: 'BRL' 
+                    }).format(finalPrice)}
+                  </Text>
+                </Flex>
+              </Box>
+
               <Button 
                 colorScheme="blue" 
                 width="100%"
@@ -1931,8 +2311,26 @@ const Menu: React.FC = () => {
               </Button>
             </VStack>
           </form>
-        )}
+            )}
       </CustomCheckoutModal>
+
+      {/* Adicionar aviso de restaurante fechado */}
+      {!isRestaurantOpen && (
+        <Box
+          position="fixed"
+          top={0}
+          left={0}
+          right={0}
+          bg="red.500"
+          color="white"
+          py={2}
+          textAlign="center"
+          zIndex={1000}
+          fontWeight="bold"
+        >
+          ⚠️ Restaurante fechado no momento. Não é possível realizar pedidos.
+        </Box>
+      )}
 
       {/* Botão do carrinho fixo */}
       <Box 
@@ -1951,13 +2349,20 @@ const Menu: React.FC = () => {
           sx={{
             px: 6,
             py: 3,
-            backgroundColor: themeColor,
+            backgroundColor: isRestaurantOpen ? themeColor : 'gray.400',
             '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
-              backgroundColor: `${themeColor}e0`
+              transform: isRestaurantOpen ? 'translateY(-2px)' : 'none',
+              boxShadow: isRestaurantOpen ? '0 6px 16px rgba(0,0,0,0.2)' : 'none',
+              backgroundColor: isRestaurantOpen ? `${themeColor}e0` : 'gray.400',
+              cursor: isRestaurantOpen ? 'pointer' : 'not-allowed'
             },
             transition: 'all 0.2s ease'
+          }}
+          isDisabled={!isRestaurantOpen}
+          _disabled={{
+            backgroundColor: 'gray.400',
+            cursor: 'not-allowed',
+            opacity: 0.7
           }}
         >
           Sacola ({totalItems})
@@ -2171,12 +2576,113 @@ const CustomCheckoutModal = ({
             {title}
           </Heading>
 
-          {children}
+        {children}
         </Box>
       </div>
     </div>,
     document.body
   );
+};
+
+// Adicionar esta função antes do return principal do componente
+// Função para processar os additionalOptions e garantir que eles sejam do tipo correto
+const getProcessedOptionGroups = (options: any): OptionGroup[] => {
+  // Log para depuração
+  console.log('getProcessedOptionGroups recebeu:', options, 'do tipo:', typeof options);
+  
+  // Caso 1: Se for null/undefined, retornar array vazio
+  if (!options) {
+    return [];
+  }
+  
+  // Caso 2: Se já for um array, verificar se é um array válido de grupos
+  if (Array.isArray(options)) {
+    // Verificar se o array tem estrutura válida de grupos
+    const validGroups = options.filter(group => 
+      group && 
+      typeof group === 'object' && 
+      'name' in group && 
+      'options' in group && 
+      Array.isArray(group.options)
+    );
+    
+    if (validGroups.length > 0) {
+      console.log('Processando array válido com', validGroups.length, 'grupos:', validGroups);
+      return validGroups;
+    } else {
+      console.warn('Array recebido não contém grupos válidos:', options);
+      return [];
+    }
+  }
+  
+  // Caso 3: Se for uma string, tentar fazer o parse
+  if (typeof options === 'string') {
+    // Se for string vazia, retornar array vazio
+    if (options.trim() === '') {
+      return [];
+    }
+    
+    try {
+      const parsedData = JSON.parse(options);
+      
+      // Se o resultado do parse for um array, processar como array
+      if (Array.isArray(parsedData)) {
+        const validGroups = parsedData.filter(group => 
+          group && 
+          typeof group === 'object' && 
+          'name' in group && 
+          'options' in group && 
+          Array.isArray(group.options)
+        );
+        
+        if (validGroups.length > 0) {
+          console.log('String parseada para array válido com', validGroups.length, 'grupos:', validGroups);
+          return validGroups;
+        } else {
+          console.warn('String parseada para array, mas sem grupos válidos:', parsedData);
+          return [];
+        }
+      }
+      
+      // Se o resultado do parse for um objeto único, verificar se é um grupo válido
+      if (parsedData && typeof parsedData === 'object' && 'name' in parsedData && 'options' in parsedData && Array.isArray(parsedData.options)) {
+        console.log('String parseada para um único grupo válido:', parsedData);
+        return [parsedData];
+      }
+      
+      console.warn('String parseada, mas não contém estrutura válida de grupos:', parsedData);
+      return [];
+    } catch (error) {
+      console.error('Erro ao parsear string de additionalOptions:', error);
+      return [];
+    }
+  }
+  
+  // Caso 4: Se for um objeto, verificar se é um grupo único válido
+  if (options && typeof options === 'object') {
+    if ('name' in options && 'options' in options && Array.isArray(options.options)) {
+      console.log('Objeto único convertido para array de um grupo:', options);
+      return [options];
+    }
+    
+    // Verificar se alguma propriedade do objeto é um grupo válido
+    const validGroups = Object.values(options).filter(value => 
+      value && 
+      typeof value === 'object' && 
+      'name' in value && 
+      'options' in value && 
+      Array.isArray(value.options)
+    );
+    
+    if (validGroups.length > 0) {
+      console.log('Objeto com', validGroups.length, 'grupos válidos extraídos:', validGroups);
+      return validGroups as OptionGroup[];
+    }
+  }
+  
+  // Nenhum dos casos acima, retornar array vazio
+  console.warn('Impossível processar additionalOptions, tipo ou formato não suportado:', options);
+  return [];
 };
 
 export default Menu;

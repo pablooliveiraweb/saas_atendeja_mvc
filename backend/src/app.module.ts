@@ -13,6 +13,7 @@ import { ProductsModule } from './products/products.module';
 import { CustomersModule } from './customers/customers.module';
 import { RestaurantModule } from './restaurants/restaurant.module';
 import { OrdersModule } from './orders/orders.module';
+import { CouponsModule } from './coupons/coupons.module';
 import { Order } from './orders/entities/order.entity';
 import { OrderItem } from './orders/entities/order-item.entity';
 import { Restaurant } from './restaurants/entities/restaurant.entity';
@@ -20,6 +21,7 @@ import { Category } from './categories/entities/category.entity';
 import { Product } from './products/entities/product.entity';
 import { User } from './users/entities/user.entity';
 import { Customer } from './customers/entities/customer.entity';
+import { Coupon } from './coupons/entities/coupon.entity';
 import { EvolutionApiModule } from './evolution-api/evolution-api.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AIModule } from './ai/ai.module';
@@ -45,7 +47,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
         username: configService.get('DATABASE_USERNAME', 'postgres'),
         password: configService.get('DATABASE_PASSWORD', 'Cpu031191'),
         database: configService.get('DATABASE_NAME', 'atende'),
-        entities: [Restaurant, Category, Product, User, Order, OrderItem, Customer, Conversation, Message],
+        entities: [Restaurant, Category, Product, User, Order, OrderItem, Customer, Conversation, Message, Coupon],
         synchronize: true, // Temporariamente true para criar as tabelas
         logging: configService.get<boolean>('DATABASE_LOGGING', false),
         ssl: false,
@@ -68,6 +70,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     CustomersModule,
     RestaurantModule,
     OrdersModule,
+    CouponsModule,
     EvolutionApiModule,
     NotificationsModule,
     AIModule,

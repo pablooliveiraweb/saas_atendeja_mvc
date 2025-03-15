@@ -22,6 +22,7 @@ let Product = class Product {
     isActive;
     isAvailable;
     order;
+    additionalOptions;
     category;
     restaurant;
     createdAt;
@@ -60,6 +61,10 @@ __decorate([
     (0, typeorm_1.Column)({ default: 0 }),
     __metadata("design:type", Number)
 ], Product.prototype, "order", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'json', default: '[]' }),
+    __metadata("design:type", String)
+], Product.prototype, "additionalOptions", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => category_entity_1.Category, { onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)(),

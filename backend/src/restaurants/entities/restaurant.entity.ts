@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Order } from '../../orders/entities/order.entity';
+import { Coupon } from '../../coupons/entities/coupon.entity';
 
 export enum RestaurantStatus {
   ACTIVE = 'active',
@@ -125,6 +126,9 @@ export class Restaurant {
 
   @OneToMany(() => Order, order => order.restaurant)
   orders: Order[];
+
+  @OneToMany(() => Coupon, coupon => coupon.restaurant)
+  coupons: Coupon[];
 
   @CreateDateColumn()
   createdAt: Date;

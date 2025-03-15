@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Box,
   Button,
@@ -45,6 +45,17 @@ import {
   Switch,
   Stack,
   Avatar,
+  Divider,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
 } from '@chakra-ui/react';
 import { AddIcon, EditIcon, DeleteIcon, CheckCircleIcon, WarningIcon } from '@chakra-ui/icons';
 import { productsService } from '../../services/productsService';
@@ -52,7 +63,22 @@ import { categoriesService } from '../../services/categoriesService';
 import { Product, ProductFormData } from '../../types/product';
 import { Category } from '../../types/category';
 import { useAuth } from '../../contexts/AuthContext';
-import Layout from '../../components/Layout';
+
+// Interface para o grupo de opções adicionais
+interface OptionGroup {
+  id?: string;
+  name: string;
+  required: boolean;
+  multiple: boolean;
+  options: Option[];
+}
+
+// Interface para a opção individual
+interface Option {
+  id?: string;
+  name: string;
+  price: number;
+}
 
 export const Products: React.FC = () => {
   const { restaurant } = useAuth();
@@ -75,6 +101,7 @@ export const Products: React.FC = () => {
     image: '',
     isActive: true,
     isAvailable: true,
+    additionalOptions: [],
   });
   
   // AlertDialog para confirmar exclusão
@@ -301,18 +328,98 @@ export const Products: React.FC = () => {
     });
   };
 
+  // Função para adicionar um novo grupo de opções
+  const addOptionGroup = () => {
+    const newGroup: OptionGroup = {
+      name: 'Novo Grupo',
+      required: false,
+      multiple: false,
+      options: [],
+    };
+    
+    setFormData({
+      ...formData,
+      additionalOptions: [
+        ...(formData.additionalOptions || []),
+        newGroup
+      ]
+    });
+  };
+  
+  // Função para atualizar um grupo de opções
+  const updateOptionGroup = (index: number, field: keyof OptionGroup, value: any) => {
+    const newAdditionalOptions = [...(formData.additionalOptions || [])];
+    newAdditionalOptions[index] = {
+      ...newAdditionalOptions[index],
+      [field]: value
+    };
+    
+    setFormData({
+      ...formData,
+      additionalOptions: newAdditionalOptions
+    });
+  };
+  
+  // Função para excluir um grupo de opções
+  const deleteOptionGroup = (index: number) => {
+    const newAdditionalOptions = [...(formData.additionalOptions || [])];
+    newAdditionalOptions.splice(index, 1);
+    
+    setFormData({
+      ...formData,
+      additionalOptions: newAdditionalOptions
+    });
+  };
+  
+  // Função para adicionar uma nova opção a um grupo
+  const addOption = (groupIndex: number) => {
+    const newAdditionalOptions = [...(formData.additionalOptions || [])];
+    newAdditionalOptions[groupIndex].options.push({
+      name: 'Nova Opção',
+      price: 0
+    });
+    
+    setFormData({
+      ...formData,
+      additionalOptions: newAdditionalOptions
+    });
+  };
+  
+  // Função para atualizar uma opção
+  const updateOption = (groupIndex: number, optionIndex: number, field: keyof Option, value: any) => {
+    const newAdditionalOptions = [...(formData.additionalOptions || [])];
+    newAdditionalOptions[groupIndex].options[optionIndex] = {
+      ...newAdditionalOptions[groupIndex].options[optionIndex],
+      [field]: field === 'price' ? parseFloat(value) : value
+    };
+    
+    setFormData({
+      ...formData,
+      additionalOptions: newAdditionalOptions
+    });
+  };
+  
+  // Função para excluir uma opção
+  const deleteOption = (groupIndex: number, optionIndex: number) => {
+    const newAdditionalOptions = [...(formData.additionalOptions || [])];
+    newAdditionalOptions[groupIndex].options.splice(optionIndex, 1);
+    
+    setFormData({
+      ...formData,
+      additionalOptions: newAdditionalOptions
+    });
+  };
+
   if (isLoading) {
     return (
-      <Layout title="Produtos">
-        <Flex justify="center" align="center" height="50vh">
-          <Spinner size="xl" color="blue.500" />
-        </Flex>
-      </Layout>
+      <Flex justify="center" align="center" height="50vh">
+        <Spinner size="xl" color="blue.500" />
+      </Flex>
     );
   }
 
   return (
-    <Layout title="Produtos">
+    <>
       {/* Cabeçalho */}
       <Box mb={8} p={4} bg={cardBg} rounded="lg" shadow="sm">
         <Flex justify="space-between" align="center">
@@ -438,7 +545,7 @@ export const Products: React.FC = () => {
       </Card>
 
       {/* Modal para adicionar/editar produto */}
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader bg={headerBg}>
@@ -521,6 +628,158 @@ export const Products: React.FC = () => {
                 />
               </FormControl>
             </Stack>
+
+            {/* Seção de Opções Adicionais (Complementos) */}
+            <Box mb={6}>
+              <Flex justify="space-between" align="center" mb={2}>
+                <Heading size="sm">Complementos</Heading>
+                <Button 
+                  size="sm" 
+                  leftIcon={<AddIcon />} 
+                  colorScheme="blue" 
+                  variant="outline"
+                  onClick={addOptionGroup}
+                >
+                  Novo Grupo
+                </Button>
+              </Flex>
+              
+              <Divider mb={4} />
+              
+              {formData.additionalOptions && formData.additionalOptions.length > 0 ? (
+                <Accordion allowToggle defaultIndex={[0]}>
+                  {formData.additionalOptions.map((group, groupIndex) => (
+                    <AccordionItem key={groupIndex}>
+                      <h2>
+                        <AccordionButton bg={headerBg} _hover={{ bg: 'gray.100' }}>
+                          <Box flex="1" textAlign="left">
+                            {group.name || 'Grupo sem nome'}
+                          </Box>
+                          <AccordionIcon />
+                        </AccordionButton>
+                      </h2>
+                      <AccordionPanel pb={4}>
+                        <FormControl mb={2}>
+                          <FormLabel fontSize="sm">Nome do Grupo</FormLabel>
+                          <Input 
+                            size="sm"
+                            value={group.name} 
+                            onChange={(e) => updateOptionGroup(groupIndex, 'name', e.target.value)}
+                          />
+                        </FormControl>
+                        
+                        <Stack direction="row" spacing={8} mb={4}>
+                          <FormControl display="flex" alignItems="center">
+                            <FormLabel mb="0" fontSize="sm">Obrigatório</FormLabel>
+                            <Switch 
+                              isChecked={group.required} 
+                              onChange={(e) => updateOptionGroup(groupIndex, 'required', e.target.checked)}
+                            />
+                          </FormControl>
+                          
+                          <FormControl display="flex" alignItems="center">
+                            <FormLabel mb="0" fontSize="sm">Múltipla escolha</FormLabel>
+                            <Switch 
+                              isChecked={group.multiple} 
+                              onChange={(e) => updateOptionGroup(groupIndex, 'multiple', e.target.checked)}
+                            />
+                          </FormControl>
+                        </Stack>
+                        
+                        <Divider mb={3} />
+                        
+                        <Flex justify="space-between" align="center" mb={2}>
+                          <Text fontSize="sm" fontWeight="bold">Opções do Grupo</Text>
+                          <Button 
+                            size="xs" 
+                            leftIcon={<AddIcon />} 
+                            colorScheme="green" 
+                            variant="outline"
+                            onClick={() => addOption(groupIndex)}
+                          >
+                            Adicionar Opção
+                          </Button>
+                        </Flex>
+                        
+                        {group.options.length > 0 ? (
+                          <Box border="1px" borderColor="gray.200" borderRadius="md" p={2}>
+                            {group.options.map(function(option: Option, optIndex: number) {
+                              return (
+                                <Flex key={optIndex} mb={2} align="center">
+                                  <FormControl flex="2" mr={2}>
+                                    <Input 
+                                      size="sm"
+                                      placeholder="Nome da opção" 
+                                      value={option.name} 
+                                      onChange={(e) => updateOption(groupIndex, optIndex, 'name', e.target.value)}
+                                    />
+                                  </FormControl>
+                                  
+                                  <FormControl flex="1" mr={2}>
+                                    <NumberInput 
+                                      size="sm"
+                                      min={0} 
+                                      precision={2} 
+                                      step={0.5}
+                                      value={option.price} 
+                                      onChange={(value) => updateOption(groupIndex, optIndex, 'price', value)}
+                                    >
+                                      <NumberInputField placeholder="Preço" />
+                                      <NumberInputStepper>
+                                        <NumberIncrementStepper />
+                                        <NumberDecrementStepper />
+                                      </NumberInputStepper>
+                                    </NumberInput>
+                                  </FormControl>
+                                  
+                                  <IconButton
+                                    aria-label="Remover opção"
+                                    icon={<DeleteIcon />}
+                                    size="sm"
+                                    colorScheme="red"
+                                    variant="ghost"
+                                    onClick={() => deleteOption(groupIndex, optIndex)}
+                                  />
+                                </Flex>
+                              );
+                            })}
+                          </Box>
+                        ) : (
+                          <Text fontSize="sm" color="gray.500" textAlign="center" py={2}>
+                            Nenhuma opção adicionada neste grupo
+                          </Text>
+                        )}
+                        
+                        <Flex justify="flex-end" mt={3}>
+                          <Button 
+                            size="xs" 
+                            colorScheme="red" 
+                            variant="outline"
+                            leftIcon={<DeleteIcon />}
+                            onClick={() => deleteOptionGroup(groupIndex)}
+                          >
+                            Excluir Grupo
+                          </Button>
+                        </Flex>
+                      </AccordionPanel>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              ) : (
+                <Box p={4} bg="gray.50" borderRadius="md" textAlign="center">
+                  <Text color="gray.500" mb={2}>Nenhum grupo de complementos adicionado</Text>
+                  <Button 
+                    size="sm" 
+                    colorScheme="blue" 
+                    variant="outline"
+                    leftIcon={<AddIcon />}
+                    onClick={addOptionGroup}
+                  >
+                    Adicionar Grupo de Complementos
+                  </Button>
+                </Box>
+              )}
+            </Box>
           </ModalBody>
 
           <ModalFooter>
@@ -564,7 +823,7 @@ export const Products: React.FC = () => {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
-    </Layout>
+    </>
   );
 };
 

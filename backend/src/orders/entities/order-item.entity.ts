@@ -18,29 +18,35 @@ export class OrderItem {
   @Column()
   quantity: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'unit_price' })
   unitPrice: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, name: 'total_price' })
   totalPrice: number;
 
-  @Column({ type: 'json', default: '{}' })
+  @Column({ type: 'json', default: '{}', name: 'additional_options' })
   additionalOptions: string;
 
   @Column({ length: 500, nullable: true })
   notes: string;
 
   @ManyToOne(() => Order, (order) => order.orderItems, { onDelete: 'CASCADE' })
-  @JoinColumn()
+  @JoinColumn({ name: 'order_id' })
   order: Order;
 
+  @Column({ name: 'order_id' })
+  orderId: string;
+
   @ManyToOne(() => Product)
-  @JoinColumn()
+  @JoinColumn({ name: 'product_id' })
   product: Product;
 
-  @CreateDateColumn()
+  @Column({ name: 'product_id' })
+  productId: string;
+
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 } 

@@ -35,15 +35,19 @@ let ProductsService = class ProductsService {
         if (!category) {
             throw new common_1.NotFoundException(`Categoria com ID ${createProductDto.categoryId} não encontrada`);
         }
+        const dtoToSave = { ...createProductDto };
+        if (dtoToSave.additionalOptions) {
+            dtoToSave.additionalOptions = JSON.stringify(dtoToSave.additionalOptions);
+        }
         const product = this.productsRepository.create({
-            ...createProductDto,
+            ...dtoToSave,
             category,
             restaurant: { id: restaurantId },
         });
         return this.productsRepository.save(product);
     }
     async findAll(restaurantId) {
-        return this.productsRepository.find({
+        const products = await this.productsRepository.find({
             where: { restaurant: { id: restaurantId } },
             relations: ['category'],
             order: {
@@ -51,9 +55,27 @@ let ProductsService = class ProductsService {
                 order: 'ASC',
             },
         });
+        return products.map(product => {
+            const transformedProduct = { ...product };
+            if (transformedProduct.additionalOptions &&
+                typeof transformedProduct.additionalOptions === 'string' &&
+                transformedProduct.additionalOptions.trim() !== '') {
+                try {
+                    transformedProduct.additionalOptions = JSON.parse(transformedProduct.additionalOptions);
+                }
+                catch (error) {
+                    console.error('Erro ao parsear additionalOptions:', error);
+                    transformedProduct.additionalOptions = [];
+                }
+            }
+            else {
+                transformedProduct.additionalOptions = [];
+            }
+            return transformedProduct;
+        });
     }
     async findByCategory(categoryId, restaurantId) {
-        return this.productsRepository.find({
+        const products = await this.productsRepository.find({
             where: {
                 category: { id: categoryId },
                 restaurant: { id: restaurantId },
@@ -61,6 +83,24 @@ let ProductsService = class ProductsService {
             order: {
                 order: 'ASC',
             },
+        });
+        return products.map(product => {
+            const transformedProduct = { ...product };
+            if (transformedProduct.additionalOptions &&
+                typeof transformedProduct.additionalOptions === 'string' &&
+                transformedProduct.additionalOptions.trim() !== '') {
+                try {
+                    transformedProduct.additionalOptions = JSON.parse(transformedProduct.additionalOptions);
+                }
+                catch (error) {
+                    console.error('Erro ao parsear additionalOptions:', error);
+                    transformedProduct.additionalOptions = [];
+                }
+            }
+            else {
+                transformedProduct.additionalOptions = [];
+            }
+            return transformedProduct;
         });
     }
     async findOne(id, restaurantId) {
@@ -71,7 +111,22 @@ let ProductsService = class ProductsService {
         if (!product) {
             throw new common_1.NotFoundException(`Produto com ID ${id} não encontrado`);
         }
-        return product;
+        const transformedProduct = { ...product };
+        if (transformedProduct.additionalOptions &&
+            typeof transformedProduct.additionalOptions === 'string' &&
+            transformedProduct.additionalOptions.trim() !== '') {
+            try {
+                transformedProduct.additionalOptions = JSON.parse(transformedProduct.additionalOptions);
+            }
+            catch (error) {
+                console.error('Erro ao parsear additionalOptions:', error);
+                transformedProduct.additionalOptions = [];
+            }
+        }
+        else {
+            transformedProduct.additionalOptions = [];
+        }
+        return transformedProduct;
     }
     async update(id, updateProductDto, restaurantId) {
         const product = await this.findOne(id, restaurantId);
@@ -88,8 +143,32 @@ let ProductsService = class ProductsService {
             product.category = category;
             delete updateProductDto.categoryId;
         }
-        Object.assign(product, updateProductDto);
-        return this.productsRepository.save(product);
+        const dtoToSave = { ...updateProductDto };
+        if (dtoToSave.additionalOptions) {
+            dtoToSave.additionalOptions = JSON.stringify(dtoToSave.additionalOptions);
+        }
+        const productToSave = { ...product };
+        if (productToSave.additionalOptions && typeof productToSave.additionalOptions !== 'string') {
+            delete productToSave.additionalOptions;
+        }
+        Object.assign(productToSave, dtoToSave);
+        const savedProduct = await this.productsRepository.save(productToSave);
+        const result = { ...savedProduct };
+        if (result.additionalOptions &&
+            typeof result.additionalOptions === 'string' &&
+            result.additionalOptions.trim() !== '') {
+            try {
+                result.additionalOptions = JSON.parse(result.additionalOptions);
+            }
+            catch (error) {
+                console.error('Erro ao parsear additionalOptions:', error);
+                result.additionalOptions = [];
+            }
+        }
+        else {
+            result.additionalOptions = [];
+        }
+        return result;
     }
     async remove(id, restaurantId) {
         const product = await this.findOne(id, restaurantId);

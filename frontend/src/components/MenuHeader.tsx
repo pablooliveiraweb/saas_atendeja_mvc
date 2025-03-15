@@ -485,20 +485,20 @@ const MenuHeader: React.FC<MenuHeaderProps> = ({
             zIndex: 5,
             borderBottom: 'none',
             boxShadow: 'none',
-          }}
-        >
-          <Container maxWidth="lg">
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              {/* Informações do restaurante (lado esquerdo) */}
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center',
-                textAlign: 'left'
-              }}>
+      }}
+    >
+      <Container maxWidth="lg">
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          {/* Informações do restaurante (lado esquerdo) */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            textAlign: 'left'
+          }}>
                 {/* Logo do restaurante */}
                 {logoUrl ? (
                   <div 
@@ -526,12 +526,12 @@ const MenuHeader: React.FC<MenuHeaderProps> = ({
                     />
                   </div>
                 ) : (
-                  <Avatar
-                    alt={restaurant.name}
-                    sx={{
+            <Avatar
+              alt={restaurant.name}
+              sx={{
                       width: 80,
                       height: 80,
-                      mr: 2,
+                mr: 2,
                       border: '3px solid white',
                       boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
                       bgcolor: themeColor, // Usar cor do tema
@@ -542,47 +542,47 @@ const MenuHeader: React.FC<MenuHeaderProps> = ({
                     {restaurant.name.charAt(0)}
                   </Avatar>
                 )}
-                
-                <Box>
-                  <Typography 
-                    variant="h5" 
-                    component="h1" 
-                    fontWeight="bold" 
-                    sx={{ 
-                      fontSize: { xs: '1.5rem', md: '1.75rem' },
+            
+            <Box>
+              <Typography 
+                variant="h5" 
+                component="h1" 
+                fontWeight="bold" 
+                sx={{ 
+                  fontSize: { xs: '1.5rem', md: '1.75rem' },
                       color: coverImageUrl ? 'white' : '#333333',
                       textShadow: coverImageUrl ? '0 2px 4px rgba(0,0,0,0.5)' : 'none',
                       position: 'relative',
                       zIndex: 5
-                    }}
-                  >
-                    {restaurant.name}
-                  </Typography>
-                  
-                  {restaurant.description && (
-                    <Typography 
-                      variant="body2" 
-                      sx={{ 
+                }}
+              >
+                {restaurant.name}
+              </Typography>
+              
+              {restaurant.description && (
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
                         color: coverImageUrl ? 'rgba(255,255,255,0.9)' : '#666666',
-                        maxWidth: '400px',
+                    maxWidth: '400px',
                         mb: coverImageUrl ? 1 : 1,
                         textShadow: coverImageUrl ? '0 1px 2px rgba(0,0,0,0.5)' : 'none',
                         position: 'relative',
                         zIndex: 5
-                      }}
-                    >
-                      {restaurant.description}
-                    </Typography>
-                  )}
-                  
+                  }}
+                >
+                  {restaurant.description}
+                </Typography>
+              )}
+              
                   {/* Mostrar informações de contato apenas quando não há imagem de capa */}
                   {!coverImageUrl && (
                     <Box 
                       sx={{ 
-                        display: 'flex', 
-                        flexWrap: 'wrap',
-                        gap: 2,
-                        color: '#666666',
+                display: 'flex', 
+                flexWrap: 'wrap',
+                gap: 2,
+                color: '#666666',
                         fontSize: '0.8rem',
                         '& svg': {
                           color: `${themeColor} !important`, // Usar cor do tema
@@ -593,12 +593,12 @@ const MenuHeader: React.FC<MenuHeaderProps> = ({
                         }
                       }}
                     >
-                      {restaurant.openingHours && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {restaurant.openingHours && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <AccessTimeIcon fontSize="small" />
-                          <Typography variant="body2">
+                    <Typography variant="body2">
                             {formattedOpeningHours}
-                          </Typography>
+                    </Typography>
                           <Box 
                             component="span" 
                             sx={{ 
@@ -614,79 +614,79 @@ const MenuHeader: React.FC<MenuHeaderProps> = ({
                           >
                             {isOpen ? 'ABERTO' : 'FECHADO'}
                           </Box>
-                        </Box>
-                      )}
-                      
-                      {restaurant.address && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <LocationOnIcon fontSize="small" />
-                          <Typography variant="body2">
-                            {restaurant.address}
-                          </Typography>
-                        </Box>
-                      )}
-                      
-                      {restaurant.phone && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <PhoneIcon fontSize="small" />
-                          <Typography variant="body2">
-                            {restaurant.phone}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  )}
-                </Box>
-              </Box>
-              
-              {/* Informações do cliente (lado direito) */}
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                {isLoggedIn ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Avatar sx={{ bgcolor: themeColor, width: 40, height: 40 }}>
-                      <PersonIcon />
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body2" fontWeight="medium" sx={{ color: coverImageUrl ? 'white' : 'inherit' }}>
-                        Olá, {userName}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: coverImageUrl ? 'rgba(255,255,255,0.8)' : 'text.secondary' }}>
-                        Meu Perfil
-                      </Typography>
-                    </Box>
                   </Box>
-                ) : (
-                  <Box>
-                    <Button 
-                      variant="contained" 
-                      sx={{ 
-                        bgcolor: themeColor, 
-                        mr: 1,
-                        '&:hover': {
-                          bgcolor: `${themeColor}e0` // Versão mais escura da cor do tema
-                        }
-                      }}
-                    >
-                      Entrar
-                    </Button>
-                    <Button 
-                      variant="outlined" 
-                      sx={{ 
-                        borderColor: coverImageUrl ? 'white' : themeColor, 
-                        color: coverImageUrl ? 'white' : themeColor,
-                        '&:hover': {
-                          borderColor: coverImageUrl ? 'rgba(255,255,255,0.8)' : `${themeColor}b0`,
-                          bgcolor: coverImageUrl ? 'rgba(255,255,255,0.1)' : `${themeColor}10`
-                        }
-                      }}
-                    >
-                      Cadastrar
-                    </Button>
+                )}
+                
+                {restaurant.address && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <LocationOnIcon fontSize="small" />
+                    <Typography variant="body2">
+                      {restaurant.address}
+                    </Typography>
+                  </Box>
+                )}
+                
+                {restaurant.phone && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <PhoneIcon fontSize="small" />
+                    <Typography variant="body2">
+                      {restaurant.phone}
+                    </Typography>
                   </Box>
                 )}
               </Box>
+                  )}
             </Box>
-          </Container>
+          </Box>
+          
+          {/* Informações do cliente (lado direito) */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {isLoggedIn ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Avatar sx={{ bgcolor: themeColor, width: 40, height: 40 }}>
+                  <PersonIcon />
+                </Avatar>
+                <Box>
+                      <Typography variant="body2" fontWeight="medium" sx={{ color: coverImageUrl ? 'white' : 'inherit' }}>
+                    Olá, {userName}
+                  </Typography>
+                      <Typography variant="caption" sx={{ color: coverImageUrl ? 'rgba(255,255,255,0.8)' : 'text.secondary' }}>
+                    Meu Perfil
+                  </Typography>
+                </Box>
+              </Box>
+            ) : (
+              <Box>
+                <Button 
+                  variant="contained" 
+                  sx={{ 
+                        bgcolor: themeColor, 
+                    mr: 1,
+                    '&:hover': {
+                          bgcolor: `${themeColor}e0` // Versão mais escura da cor do tema
+                    }
+                  }}
+                >
+                  Entrar
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  sx={{ 
+                        borderColor: coverImageUrl ? 'white' : themeColor, 
+                        color: coverImageUrl ? 'white' : themeColor,
+                    '&:hover': {
+                          borderColor: coverImageUrl ? 'rgba(255,255,255,0.8)' : `${themeColor}b0`,
+                          bgcolor: coverImageUrl ? 'rgba(255,255,255,0.1)' : `${themeColor}10`
+                    }
+                  }}
+                >
+                  Cadastrar
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Container>
         </Box>
         
         {/* Informações de contato (quando tem imagem de capa) */}

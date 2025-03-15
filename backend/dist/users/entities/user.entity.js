@@ -12,7 +12,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = exports.UserRole = void 0;
 const typeorm_1 = require("typeorm");
 const bcrypt = require("bcrypt");
-const order_entity_1 = require("../../orders/entities/order.entity");
 var UserRole;
 (function (UserRole) {
     UserRole["ADMIN"] = "admin";
@@ -28,7 +27,6 @@ let User = class User {
     isActive;
     createdAt;
     updatedAt;
-    orders;
     async hashPassword() {
         if (this.password) {
             this.password = await bcrypt.hash(this.password, 10);
@@ -75,10 +73,6 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)(),
     __metadata("design:type", Date)
 ], User.prototype, "updatedAt", void 0);
-__decorate([
-    (0, typeorm_1.OneToMany)(() => order_entity_1.Order, order => order.user),
-    __metadata("design:type", Array)
-], User.prototype, "orders", void 0);
 __decorate([
     (0, typeorm_1.BeforeInsert)(),
     (0, typeorm_1.BeforeUpdate)(),

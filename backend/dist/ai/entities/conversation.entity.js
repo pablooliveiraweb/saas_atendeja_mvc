@@ -35,41 +35,41 @@ __decorate([
     __metadata("design:type", String)
 ], Conversation.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ name: 'phone_number' }),
     __metadata("design:type", String)
 ], Conversation.prototype, "phoneNumber", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ default: true }),
+    (0, typeorm_1.Column)({ default: true, name: 'is_active' }),
     __metadata("design:type", Boolean)
 ], Conversation.prototype, "isActive", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
+    (0, typeorm_1.Column)({ nullable: true, name: 'last_interaction_at' }),
     __metadata("design:type", Date)
 ], Conversation.prototype, "lastInteractionAt", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ default: false }),
+    (0, typeorm_1.Column)({ default: false, name: 'needs_follow_up' }),
     __metadata("design:type", Boolean)
 ], Conversation.prototype, "needsFollowUp", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
+    (0, typeorm_1.Column)({ nullable: true, name: 'follow_up_sent_at' }),
     __metadata("design:type", Date)
 ], Conversation.prototype, "followUpSentAt", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => restaurant_entity_1.Restaurant),
-    (0, typeorm_1.JoinColumn)(),
+    (0, typeorm_1.JoinColumn)({ name: 'restaurant_id' }),
     __metadata("design:type", restaurant_entity_1.Restaurant)
 ], Conversation.prototype, "restaurant", void 0);
 __decorate([
-    (0, typeorm_1.Column)(),
+    (0, typeorm_1.Column)({ name: 'restaurant_id' }),
     __metadata("design:type", String)
 ], Conversation.prototype, "restaurantId", void 0);
 __decorate([
     (0, typeorm_1.ManyToOne)(() => customer_entity_1.Customer, { nullable: true }),
-    (0, typeorm_1.JoinColumn)(),
+    (0, typeorm_1.JoinColumn)({ name: 'customer_id' }),
     __metadata("design:type", customer_entity_1.Customer)
 ], Conversation.prototype, "customer", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ nullable: true }),
+    (0, typeorm_1.Column)({ nullable: true, name: 'customer_id' }),
     __metadata("design:type", String)
 ], Conversation.prototype, "customerId", void 0);
 __decorate([
@@ -77,14 +77,14 @@ __decorate([
     __metadata("design:type", Array)
 ], Conversation.prototype, "messages", void 0);
 __decorate([
-    (0, typeorm_1.CreateDateColumn)(),
+    (0, typeorm_1.CreateDateColumn)({ name: 'created_at' }),
     __metadata("design:type", Date)
 ], Conversation.prototype, "createdAt", void 0);
 __decorate([
-    (0, typeorm_1.UpdateDateColumn)(),
+    (0, typeorm_1.UpdateDateColumn)({ name: 'updated_at' }),
     __metadata("design:type", Date)
 ], Conversation.prototype, "updatedAt", void 0);
 exports.Conversation = Conversation = __decorate([
-    (0, typeorm_1.Entity)()
+    (0, typeorm_1.Entity)('conversation')
 ], Conversation);
 //# sourceMappingURL=conversation.entity.js.map

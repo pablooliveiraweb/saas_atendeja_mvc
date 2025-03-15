@@ -1,6 +1,7 @@
 import { Restaurant } from '../../restaurants/entities/restaurant.entity';
-import { User } from '../../users/entities/user.entity';
+import { Customer } from '../../customers/entities/customer.entity';
 import { OrderItem } from './order-item.entity';
+import { Coupon } from '../../coupons/entities/coupon.entity';
 export declare enum OrderStatus {
     PENDING = "pending",
     CONFIRMED = "confirmed",
@@ -12,15 +13,13 @@ export declare enum OrderStatus {
 }
 export declare enum PaymentMethod {
     CASH = "cash",
-    CREDIT = "credit",
-    DEBIT = "debit",
-    PIX = "pix",
-    ONLINE = "online"
+    CARD = "card",
+    PIX = "pix"
 }
 export declare enum OrderType {
-    DELIVERY = "delivery",
     PICKUP = "pickup",
-    DINE_IN = "dine_in"
+    DELIVERY = "delivery",
+    DINE_IN = "dineIn"
 }
 export declare class Order {
     id: string;
@@ -37,10 +36,16 @@ export declare class Order {
     customerPhone: string;
     customerName: string;
     restaurant: Restaurant;
-    user: User;
+    restaurantId: string;
+    customer: Customer;
+    customerId: string;
     orderItems: OrderItem[];
     notificationSent: boolean;
     printed: boolean;
+    couponCode: string;
+    couponId: string;
+    discountValue: number;
+    coupon: Coupon;
     createdAt: Date;
     updatedAt: Date;
 }

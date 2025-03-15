@@ -31,7 +31,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
     async findAll() {
         return this.orderRepository.find({
             order: { createdAt: 'DESC' },
-            relations: ['restaurant', 'user']
+            relations: ['restaurant']
         });
     }
     async findAllWithStatus(status) {
@@ -40,7 +40,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             const orders = await this.orderRepository.find({
                 where: { status },
                 order: { createdAt: 'DESC' },
-                relations: ['restaurant', 'user']
+                relations: ['restaurant']
             });
             this.logger.log(`Encontrados ${orders.length} pedidos com status ${status}`);
             return orders;
@@ -63,7 +63,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         try {
             const order = await this.orderRepository.findOne({
                 where: { id },
-                relations: ['restaurant', 'user']
+                relations: ['restaurant']
             });
             if (!order) {
                 this.logger.warn(`Pedido com ID ${id} não encontrado`);

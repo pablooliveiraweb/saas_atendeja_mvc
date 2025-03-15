@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Conversation } from './conversation.entity';
 
-@Entity()
+@Entity('messages')
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -13,12 +13,12 @@ export class Message {
   role: string; // 'user' ou 'assistant'
 
   @ManyToOne(() => Conversation, conversation => conversation.messages)
-  @JoinColumn()
+  @JoinColumn({ name: 'conversation_id' })
   conversation: Conversation;
 
-  @Column()
+  @Column({ name: 'conversation_id' })
   conversationId: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 } 

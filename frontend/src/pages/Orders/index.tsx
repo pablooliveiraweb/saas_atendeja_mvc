@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import Layout from '../../components/Layout';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   Box, 
   Heading, 
@@ -319,87 +318,85 @@ const Orders: React.FC = () => {
   };
 
   return (
-    <Layout title="Gerenciamento de Pedidos">
-      <Box p={4}>
-        <Flex justifyContent="space-between" alignItems="center" mb={6}>
-          <Heading size="lg">Gerenciamento de Pedidos</Heading>
-          <Flex alignItems="center">
-            <Text fontSize="sm" color="gray.500" mr={2}>
-              Atualizado: {lastRefresh.toLocaleTimeString()}
-            </Text>
-            <Button 
-              size="sm" 
-              leftIcon={<Icon as={FiRefreshCw} />} 
-              onClick={handleRefresh}
-              isLoading={isLoading}
-            >
-              Atualizar
-            </Button>
-          </Flex>
+    <Box p={4}>
+      <Flex justifyContent="space-between" alignItems="center" mb={6}>
+        <Heading size="lg">Gerenciamento de Pedidos</Heading>
+        <Flex alignItems="center">
+          <Text fontSize="sm" color="gray.500" mr={2}>
+            Atualizado: {lastRefresh.toLocaleTimeString()}
+          </Text>
+          <Button 
+            size="sm" 
+            leftIcon={<Icon as={FiRefreshCw} />} 
+            onClick={handleRefresh}
+            isLoading={isLoading}
+          >
+            Atualizar
+          </Button>
         </Flex>
+      </Flex>
 
-        {error && (
-          <Alert status="error" mb={4}>
-            <AlertIcon />
-            {error}
-          </Alert>
-        )}
+      {error && (
+        <Alert status="error" mb={4}>
+          <AlertIcon />
+          {error}
+        </Alert>
+      )}
 
-        <Box mb={6}>
-          <OrderSearch 
-            onSelectOrder={(order) => {
-              // Destacar o pedido selecionado ou realizar outra ação
-              toast({
-                title: 'Pedido selecionado',
-                description: `Pedido #${order.orderNumber || order.id.substring(0, 8)} - ${order.customerName}`,
-                status: 'info',
-                duration: 3000,
-                isClosable: true,
-              });
-            }}
-          />
-        </Box>
-
-        <Grid
-          templateColumns={{
-            base: "1fr",
-            md: "repeat(2, 1fr)",
-            lg: "repeat(3, 1fr)",
-            xl: "repeat(3, 1fr)"
+      <Box mb={6}>
+        <OrderSearch 
+          onSelectOrder={(order) => {
+            // Destacar o pedido selecionado ou realizar outra ação
+            toast({
+              title: 'Pedido selecionado',
+              description: `Pedido #${order.orderNumber || order.id.substring(0, 8)} - ${order.customerName}`,
+              status: 'info',
+              duration: 3000,
+              isClosable: true,
+            });
           }}
-          gap={6}
-          mt={4}
-        >
-          <GridItem>
-            <OrderColumn
-              title="Em Preparo"
-              color="orange"
-              orders={preparingOrders}
-              onStatusChange={fetchOrders}
-              isLoading={isLoading}
-            />
-          </GridItem>
-          <GridItem>
-            <OrderColumn
-              title="Pedidos Prontos"
-              color="green"
-              orders={readyOrders}
-              onStatusChange={fetchOrders}
-              isLoading={isLoading}
-            />
-          </GridItem>
-          <GridItem>
-            <OrderColumn
-              title="Saiu para Entrega"
-              color="purple"
-              orders={outForDeliveryOrders}
-              onStatusChange={fetchOrders}
-              isLoading={isLoading}
-            />
-          </GridItem>
-        </Grid>
+        />
       </Box>
-    </Layout>
+
+      <Grid
+        templateColumns={{
+          base: "1fr",
+          md: "repeat(2, 1fr)",
+          lg: "repeat(3, 1fr)",
+          xl: "repeat(3, 1fr)"
+        }}
+        gap={6}
+        mt={4}
+      >
+        <GridItem>
+          <OrderColumn
+            title="Em Preparo"
+            color="orange"
+            orders={preparingOrders}
+            onStatusChange={fetchOrders}
+            isLoading={isLoading}
+          />
+        </GridItem>
+        <GridItem>
+          <OrderColumn
+            title="Pedidos Prontos"
+            color="green"
+            orders={readyOrders}
+            onStatusChange={fetchOrders}
+            isLoading={isLoading}
+          />
+        </GridItem>
+        <GridItem>
+          <OrderColumn
+            title="Saiu para Entrega"
+            color="purple"
+            orders={outForDeliveryOrders}
+            onStatusChange={fetchOrders}
+            isLoading={isLoading}
+          />
+        </GridItem>
+      </Grid>
+    </Box>
   );
 };
 

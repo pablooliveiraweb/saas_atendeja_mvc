@@ -9,8 +9,9 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Restaurant } from '../../restaurants/entities/restaurant.entity';
-import { User } from '../../users/entities/user.entity';
+import { Customer } from '../../customers/entities/customer.entity';
 import { OrderItem } from './order-item.entity';
+import { Coupon } from '../../coupons/entities/coupon.entity';
 
 export enum OrderStatus {
   PENDING = 'pending',
@@ -24,16 +25,14 @@ export enum OrderStatus {
 
 export enum PaymentMethod {
   CASH = 'cash',
-  CREDIT = 'credit',
-  DEBIT = 'debit',
+  CARD = 'card',
   PIX = 'pix',
-  ONLINE = 'online',
 }
 
 export enum OrderType {
-  DELIVERY = 'delivery',
   PICKUP = 'pickup',
-  DINE_IN = 'dine_in',
+  DELIVERY = 'delivery',
+  DINE_IN = 'dineIn',
 }
 
 @Entity('orders')
@@ -90,10 +89,18 @@ export class Order {
   customerName: string;
 
   @ManyToOne(() => Restaurant, restaurant => restaurant.orders, { nullable: true })
+  @JoinColumn({ name: 'restaurant_id' })
   restaurant: Restaurant;
 
-  @ManyToOne(() => User, user => user.orders, { nullable: true })
-  user: User;
+  @Column({ nullable: true, name: 'restaurant_id' })
+  restaurantId: string;
+
+  @ManyToOne(() => Customer, customer => customer.orders, { nullable: true })
+  @JoinColumn({ name: 'customer_id' })
+  customer: Customer;
+
+  @Column({ nullable: true, name: 'customer_id' })
+  customerId: string;
 
   @OneToMany(() => OrderItem, orderItem => orderItem.order, { cascade: true })
   orderItems: OrderItem[];
@@ -104,9 +111,22 @@ export class Order {
   @Column({ default: false })
   printed: boolean;
 
-  @CreateDateColumn()
+  @Column({ nullable: true })
+  couponCode: string;
+
+  @Column({ nullable: true, name: 'coupon_id' })
+  couponId: string;
+
+  @Column('decimal', { precision: 10, scale: 2, default: 0, nullable: true })
+  discountValue: number;
+
+  @ManyToOne(() => Coupon, { nullable: true })
+  @JoinColumn({ name: 'coupon_id' })
+  coupon: Coupon;
+
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 } 

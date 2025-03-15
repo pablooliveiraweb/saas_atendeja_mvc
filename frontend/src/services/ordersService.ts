@@ -1,4 +1,5 @@
 import { api } from './api';
+import { OrderStatus } from './orderService';
 
 export interface Order {
   id: string;
@@ -267,6 +268,22 @@ export const ordersService: OrdersService = {
     
     if (debug) console.log('Buscando pedidos pendentes...');
     
+    // Manter um registro local de pedidos que foram aceitos recentemente
+    // para evitar que continuem aparecendo como pendentes
+    const recentlyAcceptedOrdersJson = localStorage.getItem('recentlyAcceptedOrders');
+    const recentlyAcceptedOrders = recentlyAcceptedOrdersJson 
+      ? JSON.parse(recentlyAcceptedOrdersJson) 
+      : [];
+    
+    // Limpar pedidos aceitos há mais de 1 minuto
+    const now = new Date().getTime();
+    const updatedRecentlyAcceptedOrders = recentlyAcceptedOrders.filter(
+      (item: {id: string, timestamp: number}) => now - item.timestamp < 60000
+    );
+    
+    // Salvar a lista atualizada
+    localStorage.setItem('recentlyAcceptedOrders', JSON.stringify(updatedRecentlyAcceptedOrders));
+    
     // Tentar diferentes endpoints para pedidos pendentes
     const endpoints = [
       '/orders/pending',         // Tentar endpoint específico primeiro
@@ -285,16 +302,37 @@ export const ordersService: OrdersService = {
         if (response.data && Array.isArray(response.data)) {
           console.log(`Encontrados ${response.data.length} pedidos no endpoint ${endpoint}`);
           
-          // Se for o endpoint genérico, filtrar pedidos pendentes e em preparo
-          if (endpoint === '/orders') {
-            const relevantOrders = response.data.filter(
-              (order: Order) => ['pending', 'preparing', 'ready'].includes(order.status)
-            );
-            console.log(`Filtrados ${relevantOrders.length} pedidos relevantes`);
-            return relevantOrders;
+          // Filtrar APENAS pedidos pendentes, independente do endpoint
+          // Verificar tanto 'pending' quanto OrderStatus.PENDING para compatibilidade
+          const pendingOrders = response.data.filter(
+            (order: Order) => {
+              // Verificar se o pedido está na lista de recentemente aceitos
+              const isRecentlyAccepted = updatedRecentlyAcceptedOrders.some(
+                (item: {id: string}) => item.id === order.id
+              );
+              
+              // Se estiver na lista de recentemente aceitos, não considerar como pendente
+              if (isRecentlyAccepted) {
+                console.log(`Pedido ${order.id} foi recentemente aceito, ignorando...`);
+                return false;
+              }
+              
+              const isPending = order.status === 'pending' || order.status === OrderStatus.PENDING;
+              // Verificar se o pedido não foi atualizado recentemente (nos últimos 5 segundos)
+              const isRecent = !order.updatedAt || 
+                (new Date().getTime() - new Date(order.updatedAt).getTime() > 5000);
+              return isPending && isRecent;
+            }
+          );
+          
+          console.log(`Filtrados ${pendingOrders.length} pedidos pendentes`);
+          
+          // Salvar no localStorage como backup
+          if (pendingOrders.length > 0) {
+            localStorage.setItem('pendingOrders', JSON.stringify(pendingOrders));
           }
           
-          return response.data;
+          return pendingOrders;
         } else {
           console.warn(`Resposta inesperada do endpoint ${endpoint}:`, response.data);
         }
@@ -312,20 +350,35 @@ export const ordersService: OrdersService = {
       try {
         const orders = JSON.parse(savedOrders);
         if (Array.isArray(orders)) {
-          // Filtrar apenas pedidos relevantes (pendentes, em preparo, prontos)
-          const relevantOrders = orders.filter(
-            (order: Order) => ['pending', 'preparing', 'ready'].includes(order.status)
+          // Filtrar APENAS pedidos pendentes e que não foram atualizados recentemente
+          const pendingOrders = orders.filter(
+            (order: Order) => {
+              // Verificar se o pedido está na lista de recentemente aceitos
+              const isRecentlyAccepted = updatedRecentlyAcceptedOrders.some(
+                (item: {id: string}) => item.id === order.id
+              );
+              
+              // Se estiver na lista de recentemente aceitos, não considerar como pendente
+              if (isRecentlyAccepted) {
+                return false;
+              }
+              
+              const isPending = order.status === 'pending' || order.status === OrderStatus.PENDING;
+              const isRecent = !order.updatedAt || 
+                (new Date().getTime() - new Date(order.updatedAt).getTime() > 5000);
+              return isPending && isRecent;
+            }
           );
-          console.log(`Recuperados ${relevantOrders.length} pedidos relevantes do localStorage`);
-          return relevantOrders;
+          console.log(`Recuperados ${pendingOrders.length} pedidos pendentes do localStorage`);
+          return pendingOrders;
         }
       } catch (error) {
-        console.error('Erro ao analisar pedidos do localStorage:', error);
+        console.error('Erro ao parsear pedidos do localStorage:', error);
       }
     }
     
-    // Se tudo falhar, retornar array vazio e logar o último erro
-    console.error('Não foi possível obter pedidos pendentes:', lastError);
+    // Se tudo falhar, retornar array vazio
+    console.log('Nenhum pedido pendente encontrado');
     return [];
   },
 

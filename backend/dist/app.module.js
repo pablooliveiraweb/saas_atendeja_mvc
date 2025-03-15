@@ -22,6 +22,7 @@ const products_module_1 = require("./products/products.module");
 const customers_module_1 = require("./customers/customers.module");
 const restaurant_module_1 = require("./restaurants/restaurant.module");
 const orders_module_1 = require("./orders/orders.module");
+const coupons_module_1 = require("./coupons/coupons.module");
 const order_entity_1 = require("./orders/entities/order.entity");
 const order_item_entity_1 = require("./orders/entities/order-item.entity");
 const restaurant_entity_1 = require("./restaurants/entities/restaurant.entity");
@@ -29,6 +30,7 @@ const category_entity_1 = require("./categories/entities/category.entity");
 const product_entity_1 = require("./products/entities/product.entity");
 const user_entity_1 = require("./users/entities/user.entity");
 const customer_entity_1 = require("./customers/entities/customer.entity");
+const coupon_entity_1 = require("./coupons/entities/coupon.entity");
 const evolution_api_module_1 = require("./evolution-api/evolution-api.module");
 const notifications_module_1 = require("./notifications/notifications.module");
 const ai_module_1 = require("./ai/ai.module");
@@ -57,7 +59,7 @@ exports.AppModule = AppModule = __decorate([
                     username: configService.get('DATABASE_USERNAME', 'postgres'),
                     password: configService.get('DATABASE_PASSWORD', 'Cpu031191'),
                     database: configService.get('DATABASE_NAME', 'atende'),
-                    entities: [restaurant_entity_1.Restaurant, category_entity_1.Category, product_entity_1.Product, user_entity_1.User, order_entity_1.Order, order_item_entity_1.OrderItem, customer_entity_1.Customer, conversation_entity_1.Conversation, message_entity_1.Message],
+                    entities: [restaurant_entity_1.Restaurant, category_entity_1.Category, product_entity_1.Product, user_entity_1.User, order_entity_1.Order, order_item_entity_1.OrderItem, customer_entity_1.Customer, conversation_entity_1.Conversation, message_entity_1.Message, coupon_entity_1.Coupon],
                     synchronize: true,
                     logging: configService.get('DATABASE_LOGGING', false),
                     ssl: false,
@@ -80,6 +82,7 @@ exports.AppModule = AppModule = __decorate([
             customers_module_1.CustomersModule,
             restaurant_module_1.RestaurantModule,
             orders_module_1.OrdersModule,
+            coupons_module_1.CouponsModule,
             evolution_api_module_1.EvolutionApiModule,
             notifications_module_1.NotificationsModule,
             ai_module_1.AIModule,

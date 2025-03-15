@@ -61,7 +61,6 @@ import { productsService } from '../../services/productsService';
 import { ordersService, Order } from '../../services/ordersService';
 import { customersService } from '../../services/customersService';
 import { Customer } from '../../types/customer';
-import Layout from '../../components/Layout';
 import { restaurantService } from '../../services/restaurantService';
 import orderService from '../../services/orderService';
 
@@ -156,6 +155,7 @@ const Dashboard: React.FC = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [preparingOrders, setPreparingOrders] = useState<any[]>([]);
   const [currentOrder, setCurrentOrder] = useState<any | null>(null);
   const [isLoadingAction, setIsLoadingAction] = useState<boolean>(false);
   const [isPlayingAlarm, setIsPlayingAlarm] = useState<boolean>(false);
@@ -416,16 +416,185 @@ const Dashboard: React.FC = () => {
     safeStopSound();
   }, [safeStopSound]);
   
-  // Função para lidar com a visualização dos detalhes do pedido - depende de startRepeatingAlarm
+  // Função para visualizar detalhes do pedido
   const handleViewOrderDetails = useCallback((order: any) => {
-    setCurrentOrder(order);
-    onOrderModalOpen();
+    console.log('Visualizando detalhes do pedido:', order);
     
-    // Se o pedido estiver pendente, iniciar a repetição do som
-    if (order.status === 'pending') {
-      startRepeatingAlarm();
+    // Garantir que os itens do pedido estejam no formato correto
+    let processedOrder = { ...order };
+    
+    // Processar os itens do pedido se necessário
+    if (order.orderItems) {
+      try {
+        // Se orderItems for uma string, tentar parsear
+        if (typeof order.orderItems === 'string') {
+          processedOrder.orderItems = JSON.parse(order.orderItems);
+        }
+        
+        // Garantir que cada item tenha as propriedades necessárias
+        if (Array.isArray(processedOrder.orderItems)) {
+          processedOrder.orderItems = processedOrder.orderItems.map((item: any) => {
+            // Se o item tiver additionalOptions como string, tentar parsear
+            if (item.additionalOptions && typeof item.additionalOptions === 'string') {
+              try {
+                item.additionalOptions = JSON.parse(item.additionalOptions);
+              } catch (e) {
+                console.warn('Erro ao parsear additionalOptions:', e);
+              }
+            }
+            
+            // Calcular o valor dos complementos
+            let additionalOptionsTotal = 0;
+            if (item.additionalOptions && typeof item.additionalOptions === 'object') {
+              Object.values(item.additionalOptions).forEach((option: any) => {
+                if (option && typeof option === 'object' && 'price' in option && typeof option.price === 'number') {
+                  additionalOptionsTotal += option.price;
+                }
+              });
+            }
+            
+            // Obter o preço base do item
+            const basePrice = item.unitPrice || item.price || 0;
+            
+            // Calcular o preço total incluindo complementos
+            const totalUnitPrice = basePrice + additionalOptionsTotal;
+            
+            return {
+              ...item,
+              // Garantir que o item tenha um nome
+              name: item.name || item.product?.name || 'Item sem nome',
+              // Garantir que o item tenha um preço unitário
+              unitPrice: basePrice,
+              // Preço unitário com complementos
+              totalUnitPrice: totalUnitPrice,
+              // Garantir que o item tenha uma quantidade
+              quantity: item.quantity || 1,
+              // Valor total dos complementos
+              additionalOptionsTotal
+            };
+          });
+        }
+      } catch (e) {
+        console.error('Erro ao processar itens do pedido:', e);
+      }
+    } else if (order.items) {
+      // Alguns pedidos podem ter os itens no campo 'items' em vez de 'orderItems'
+      try {
+        // Se os itens forem uma string, tentar parsear
+        if (typeof order.items === 'string') {
+          processedOrder.orderItems = JSON.parse(order.items);
+        } else if (Array.isArray(order.items)) {
+          processedOrder.orderItems = order.items.map((item: any) => {
+            // Processar additionalOptions se existir
+            let additionalOptions = item.additionalOptions;
+            if (typeof additionalOptions === 'string') {
+              try {
+                additionalOptions = JSON.parse(additionalOptions);
+              } catch (e) {
+                console.warn('Erro ao parsear additionalOptions:', e);
+                additionalOptions = {};
+              }
+            }
+            
+            // Calcular o valor dos complementos
+            let additionalOptionsTotal = 0;
+            if (additionalOptions && typeof additionalOptions === 'object') {
+              Object.values(additionalOptions).forEach((option: any) => {
+                if (option && typeof option === 'object' && 'price' in option && typeof option.price === 'number') {
+                  additionalOptionsTotal += option.price;
+                }
+              });
+            }
+            
+            // Obter o preço base do item
+            const basePrice = item.price || item.unitPrice || 0;
+            
+            // Calcular o preço total incluindo complementos
+            const totalUnitPrice = basePrice + additionalOptionsTotal;
+            
+            return {
+              ...item,
+              // Garantir que o item tenha um nome
+              name: item.name || item.product?.name || 'Item sem nome',
+              // Garantir que o item tenha um preço unitário
+              unitPrice: basePrice,
+              // Preço unitário com complementos
+              totalUnitPrice: totalUnitPrice,
+              // Garantir que o item tenha uma quantidade
+              quantity: item.quantity || 1,
+              // Adicionar additionalOptions processado
+              additionalOptions: additionalOptions || {},
+              // Valor total dos complementos
+              additionalOptionsTotal
+            };
+          });
+        } else {
+          processedOrder.orderItems = order.items;
+        }
+      } catch (e) {
+        console.error('Erro ao processar itens do pedido:', e);
+        processedOrder.orderItems = order.items;
+      }
+    } else if (order.notes && typeof order.notes === 'string' && (order.notes.startsWith('[') || order.notes.startsWith('{'))) {
+      // Verificar se os itens estão no campo notes (como visto no retorno do servidor)
+      try {
+        const parsedNotes = JSON.parse(order.notes);
+        if (Array.isArray(parsedNotes)) {
+          processedOrder.orderItems = parsedNotes.map((item: any) => {
+            // Processar additionalOptions se existir
+            let additionalOptions = item.additionalOptions;
+            if (typeof additionalOptions === 'string') {
+              try {
+                additionalOptions = JSON.parse(additionalOptions);
+              } catch (e) {
+                console.warn('Erro ao parsear additionalOptions:', e);
+                additionalOptions = {};
+              }
+            }
+            
+            // Calcular o valor dos complementos
+            let additionalOptionsTotal = 0;
+            if (additionalOptions && typeof additionalOptions === 'object') {
+              Object.values(additionalOptions).forEach((option: any) => {
+                if (option && typeof option === 'object' && 'price' in option && typeof option.price === 'number') {
+                  additionalOptionsTotal += option.price;
+                }
+              });
+            }
+            
+            // Obter o preço base do item
+            const basePrice = item.price || 0;
+            
+            // Calcular o preço total incluindo complementos
+            const totalUnitPrice = basePrice + additionalOptionsTotal;
+            
+            return {
+              ...item,
+              // Garantir que o item tenha um nome
+              name: item.name || 'Item sem nome',
+              // Garantir que o item tenha um preço unitário
+              unitPrice: basePrice,
+              // Preço unitário com complementos
+              totalUnitPrice: totalUnitPrice,
+              // Garantir que o item tenha uma quantidade
+              quantity: item.quantity || 1,
+              // Adicionar additionalOptions processado
+              additionalOptions: additionalOptions || {},
+              // Valor total dos complementos
+              additionalOptionsTotal
+            };
+          });
+          console.log('Itens do pedido recuperados do campo notes:', processedOrder.orderItems);
+        }
+      } catch (e) {
+        console.error('Erro ao processar notes como itens:', e);
+      }
     }
-  }, [onOrderModalOpen, startRepeatingAlarm]);
+    
+    // Atualizar o estado com o pedido processado
+    setCurrentOrder(processedOrder);
+    onOrderModalOpen();
+  }, [onOrderModalOpen]);
   
   // Listener dedicado para o evento play-notification-sound
   useEffect(() => {
@@ -706,9 +875,16 @@ const Dashboard: React.FC = () => {
           
           // Exibir toast para cada novo pedido
           brandNewOrders.forEach((order: any) => {
+            // Verificar se o pedido tem desconto de cupom
+            const hasDiscount = order.couponCode && order.discountValue > 0;
+            const displayTotal = Number(order.total) || 0;
+            const displaySubtotal = hasDiscount ? (Number(order.subtotal) || displayTotal + Number(order.discountValue)) : displayTotal;
+            
             toast({
               title: 'Novo Pedido!',
-              description: `Pedido de ${order.customerName} - ${formatCurrency(Number(order.total) || 0)}`,
+              description: hasDiscount 
+                ? `Pedido de ${order.customerName} - ${formatCurrency(displayTotal)} (com desconto de ${formatCurrency(Number(order.discountValue))})`
+                : `Pedido de ${order.customerName} - ${formatCurrency(displayTotal)}`,
               status: 'info',
               duration: 5000,
               isClosable: true,
@@ -723,33 +899,11 @@ const Dashboard: React.FC = () => {
         }
       }
       
-      // Atualizar estado com todos os pedidos pendentes e em produção
+      // Atualizar a lista de pedidos pendentes
       setPendingOrders(newPendingOrders);
+      
     } catch (error) {
       console.error('Erro ao buscar pedidos pendentes:', error);
-      
-      // Tentar buscar do localStorage como fallback
-      try {
-        const localOrders = localStorage.getItem('pendingOrders');
-        if (localOrders) {
-          const parsedOrders = JSON.parse(localOrders);
-          if (Array.isArray(parsedOrders)) {
-            console.log(`Usando ${parsedOrders.length} pedidos do localStorage como fallback após erro`);
-            
-            // Filtrar pedidos pendentes e em produção
-            const relevantLocalOrders = parsedOrders.filter(
-              (order: any) => 
-                ['pending', 'preparing', 'ready'].includes(order.status) || 
-                [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY].includes(order.status)
-            );
-            
-            // Atualizar estado com os pedidos relevantes
-            setPendingOrders(relevantLocalOrders);
-          }
-        }
-      } catch (localError) {
-        console.error('Erro ao buscar pedidos do localStorage:', localError);
-      }
     }
   }, [pendingOrders, currentOrder, handleViewOrderDetails, toast, formatCurrency]);
   
@@ -793,6 +947,24 @@ const Dashboard: React.FC = () => {
     try {
       setIsLoadingAction(true);
       
+      // Parar a repetição do som imediatamente
+      stopRepeatingAlarm();
+      
+      // Adicionar o pedido à lista de pedidos recentemente aceitos
+      const recentlyAcceptedOrdersJson = localStorage.getItem('recentlyAcceptedOrders');
+      const recentlyAcceptedOrders = recentlyAcceptedOrdersJson 
+        ? JSON.parse(recentlyAcceptedOrdersJson) 
+        : [];
+      
+      // Adicionar o pedido atual com timestamp
+      recentlyAcceptedOrders.push({
+        id: currentOrder.id,
+        timestamp: new Date().getTime()
+      });
+      
+      // Salvar a lista atualizada
+      localStorage.setItem('recentlyAcceptedOrders', JSON.stringify(recentlyAcceptedOrders));
+      
       // Obter o nome do restaurante
       const restaurantName = restaurant?.name || 'Restaurante';
       
@@ -805,48 +977,48 @@ const Dashboard: React.FC = () => {
       );
       
       // Atualizar estado local
-      const updateData = { 
-        status: 'preparing',
+      const updatedOrder = { 
+        ...currentOrder,
+        status: OrderStatus.PREPARING,
         updatedAt: new Date().toISOString()
       };
       
-      setCurrentOrder({
-        ...currentOrder,
-        ...updateData
-      });
+      // Atualizar o pedido atual
+      setCurrentOrder(updatedOrder);
       
-      // Parar a repetição do som
-      stopRepeatingAlarm();
+      // Remover o pedido da lista de pendentes imediatamente
+      setPendingOrders(prevPendingOrders => 
+        prevPendingOrders.filter(order => order.id !== currentOrder.id)
+      );
       
-      // Atualizar lista de pedidos pendentes - importante para evitar travamentos da UI
-      const updatedOrder = {...currentOrder, ...updateData};
-      setPendingOrders(prev => prev.map(o => o.id === currentOrder.id ? updatedOrder : o));
+      // Adicionar o pedido à lista de pedidos em preparação
+      setPreparingOrders(prevPreparingOrders => [...prevPreparingOrders, updatedOrder]);
       
       // Feedback
       toast({
         title: 'Pedido aceito',
-        description: `O pedido #${currentOrder.id.substring(0, 8)} foi aceito e está em produção.`,
+        description: `O pedido de ${currentOrder.customerName} foi aceito e está em preparação.`,
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
       
-      // Fechar modal e limpar estado de carregamento
-      setIsLoadingAction(false);
+      // Fechar modal
       handleCloseOrderModal();
       
-    } catch (error) {
-      console.error("Erro ao aceitar pedido:", error);
+      // Forçar atualização da lista de pedidos
+      fetchPendingOrders();
       
-      // Feedback de erro
+    } catch (error) {
+      console.error('Erro ao aceitar pedido:', error);
       toast({
         title: 'Erro',
-        description: 'Não foi possível aceitar o pedido.',
+        description: 'Não foi possível aceitar o pedido. Tente novamente.',
         status: 'error',
         duration: 3000,
         isClosable: true,
       });
-      
+    } finally {
       setIsLoadingAction(false);
     }
   };
@@ -954,6 +1126,7 @@ const Dashboard: React.FC = () => {
       
       // Fechar modal e limpar estado de carregamento
       setIsLoadingAction(false);
+      handleCloseOrderModal();
       
     } catch (error) {
       console.error("Erro ao marcar pedido como pronto:", error);
@@ -1178,303 +1351,312 @@ const Dashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Layout title="Dashboard">
-        <Flex align="center" justify="center" h="64">
-          <Spinner size="xl" color="blue.500" thickness="4px" />
-        </Flex>
-      </Layout>
+      <Flex align="center" justify="center" h="64">
+        <Spinner size="xl" color="blue.500" thickness="4px" />
+      </Flex>
     );
   }
 
   return (
-    <Layout title="Dashboard">
-      <Container maxW="container.xl" py={8}>
-        <Heading size="lg" mb={8}>Dashboard</Heading>
+    <Container maxW="container.xl" py={8}>
+      <Heading size="lg" mb={8}>Dashboard</Heading>
 
-        {error && (
-          <Alert status="error" mb={4}>
-            <AlertIcon />
-            {error}
-          </Alert>
-        )}
+      {error && (
+        <Alert status="error" mb={4}>
+          <AlertIcon />
+          {error}
+        </Alert>
+      )}
 
-        {!restaurant ? (
-          <Box p={6} bg="yellow.100" borderRadius="md" mb={8}>
-            <Heading size="md" mb={2}>
-              Bem-vindo ao Atende!
-            </Heading>
-            <Text>
-              Você ainda não está associado a nenhum restaurante. Entre em contato com o administrador
-              para configurar seu restaurante.
-            </Text>
-          </Box>
-        ) : (
-          <>
-            {/* Botão de acesso ao cardápio digital */}
-            <Box p={6} bg={cardapioBgColor} borderRadius="md" mb={8}>
-              <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align="center">
-                <Box mb={{ base: 4, md: 0 }}>
-                  <Heading size="md" mb={2}>
-                    Cardápio Digital
-                  </Heading>
-                  <Text>
-                    Acesse o cardápio digital do seu restaurante ou compartilhe o link com seus clientes.
-                  </Text>
-                </Box>
-                <Flex>
-                  <Button 
-                    leftIcon={<ExternalLinkIcon />} 
-                    colorScheme="blue" 
-                    mr={2}
-                    as="a" 
-                    href={`/menu/${restaurantService.generateSlug(restaurant.name)}`} 
-                    target="_blank"
-                  >
-                    Ver Cardápio
-                  </Button>
-                  <Button 
-                    leftIcon={<CopyIcon />} 
-                    colorScheme="teal"
-                    onClick={handleOpenMenuModal}
-                  >
-                    Compartilhar Link
-                  </Button>
-                </Flex>
-              </Flex>
-            </Box>
-            
-            {/* Principais Indicadores */}
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
-              <StatCard
-                label="Vendas Hoje"
-                value={formatCurrency(dashboardStats.dailySales)}
-                helpText={
-                  <Flex align="center" color={dashboardStats.salesGrowth >= 0 ? "green.500" : "red.500"}>
-                    {dashboardStats.salesGrowth >= 0 ? <TriangleUpIcon /> : <TriangleDownIcon />}
-                    <Text ml={1}>{Math.abs(dashboardStats.salesGrowth)}% vs ontem</Text>
-                  </Flex>
-                }
-              />
-              <StatCard
-                label="Vendas na Semana"
-                value={formatCurrency(dashboardStats.weeklyTotal)}
-                helpText="Total dos últimos 7 dias"
-              />
-              <StatCard
-                label="Vendas no Mês"
-                value={formatCurrency(dashboardStats.monthlyTotal)}
-                helpText="Total do mês atual"
-              />
-              <StatCard
-                label="Ticket Médio"
-                value={formatCurrency(dashboardStats.averageTicket)}
-                helpText="Valor médio por pedido"
-              />
-            </SimpleGrid>
-
-            {/* Gráficos */}
-            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={8}>
-              {/* Gráfico de Vendas por Hora */}
-              <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
-                <Heading size="md" mb={4}>Vendas por Hora (Hoje)</Heading>
-                <Box h="300px">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dashboardStats.dailySalesData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
-                      <XAxis dataKey="date" stroke={chartTextColor} />
-                      <YAxis stroke={chartTextColor} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="value" stroke="#3182CE" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Box>
-
-              {/* Gráfico de Vendas por Dia */}
-              <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
-                <Heading size="md" mb={4}>Vendas por Dia (Mês Atual)</Heading>
-                <Box h="300px">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dashboardStats.monthlySalesData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
-                      <XAxis dataKey="date" stroke={chartTextColor} />
-                      <YAxis stroke={chartTextColor} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#3182CE" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </Box>
-            </SimpleGrid>
-
-            {/* Produtos Mais Vendidos e Clientes Inativos */}
-            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={8}>
-              <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
-                <Heading size="md" mb={4}>Produtos Mais Vendidos</Heading>
-                <Table variant="simple">
-                  <Thead>
-                    <Tr>
-                      <Th>Produto</Th>
-                      <Th isNumeric>Quantidade</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {topSellingProducts.map((product, index) => (
-                      <Tr key={index}>
-                        <Td>{product.name}</Td>
-                        <Td isNumeric>{product.total}</Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-
-              <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
-                <Heading size="md" mb={4}>
-                  <Flex align="center">
-                    <WarningIcon color="orange.500" mr={2} />
-                    Clientes Inativos
-                  </Flex>
+      {!restaurant ? (
+        <Box p={6} bg="yellow.100" borderRadius="md" mb={8}>
+          <Heading size="md" mb={2}>
+            Bem-vindo ao Atende!
+          </Heading>
+          <Text>
+            Você ainda não está associado a nenhum restaurante. Entre em contato com o administrador
+            para configurar seu restaurante.
+          </Text>
+        </Box>
+      ) : (
+        <>
+          {/* Botão de acesso ao cardápio digital */}
+          <Box p={6} bg={cardapioBgColor} borderRadius="md" mb={8}>
+            <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align="center">
+              <Box mb={{ base: 4, md: 0 }}>
+                <Heading size="md" mb={2}>
+                  Cardápio Digital
                 </Heading>
-                {inactiveCustomers.length === 0 ? (
-                  <Text color="gray.500" textAlign="center" py={4}>
-                    Não há clientes inativos no momento. Todos os seus clientes fizeram pedidos nos últimos 7 dias!
-                  </Text>
-                ) : (
-                  <Table variant="simple" w="100%">
-                  <Thead>
-                    <Tr>
-                      <Th>Cliente</Th>
-                        <Th>Último Pedido</Th>
-                        <Th>Dias Inativo</Th>
-                        <Th>Ação</Th>
+                <Text>
+                  Acesse o cardápio digital do seu restaurante ou compartilhe o link com seus clientes.
+                </Text>
+              </Box>
+              <Flex>
+                <Button 
+                  leftIcon={<ExternalLinkIcon />} 
+                  colorScheme="blue" 
+                  mr={2}
+                  as="a" 
+                  href={`/menu/${restaurantService.generateSlug(restaurant.name)}`} 
+                  target="_blank"
+                >
+                  Ver Cardápio
+                </Button>
+                <Button 
+                  leftIcon={<CopyIcon />} 
+                  colorScheme="teal"
+                  onClick={handleOpenMenuModal}
+                >
+                  Compartilhar Link
+                </Button>
+              </Flex>
+            </Flex>
+          </Box>
+          
+          {/* Principais Indicadores */}
+          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6} mb={8}>
+            <StatCard
+              label="Vendas Hoje"
+              value={formatCurrency(dashboardStats.dailySales)}
+              helpText={
+                <Flex align="center" color={dashboardStats.salesGrowth >= 0 ? "green.500" : "red.500"}>
+                  {dashboardStats.salesGrowth >= 0 ? <TriangleUpIcon /> : <TriangleDownIcon />}
+                  <Text ml={1}>{Math.abs(dashboardStats.salesGrowth)}% vs ontem</Text>
+                </Flex>
+              }
+            />
+            <StatCard
+              label="Vendas na Semana"
+              value={formatCurrency(dashboardStats.weeklyTotal)}
+              helpText="Total dos últimos 7 dias"
+            />
+            <StatCard
+              label="Vendas no Mês"
+              value={formatCurrency(dashboardStats.monthlyTotal)}
+              helpText="Total do mês atual"
+            />
+            <StatCard
+              label="Ticket Médio"
+              value={formatCurrency(dashboardStats.averageTicket)}
+              helpText="Valor médio por pedido"
+            />
+          </SimpleGrid>
+
+          {/* Gráficos */}
+          <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={8}>
+            {/* Gráfico de Vendas por Hora */}
+            <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
+              <Heading size="md" mb={4}>Vendas por Hora (Hoje)</Heading>
+              <Box h="300px">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dashboardStats.dailySalesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                    <XAxis dataKey="date" stroke={chartTextColor} />
+                    <YAxis stroke={chartTextColor} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#3182CE" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+            </Box>
+
+            {/* Gráfico de Vendas por Dia */}
+            <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
+              <Heading size="md" mb={4}>Vendas por Dia (Mês Atual)</Heading>
+              <Box h="300px">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardStats.monthlySalesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartGridColor} />
+                    <XAxis dataKey="date" stroke={chartTextColor} />
+                    <YAxis stroke={chartTextColor} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#3182CE" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+            </Box>
+          </SimpleGrid>
+
+          {/* Produtos Mais Vendidos e Clientes Inativos */}
+          <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={8}>
+            <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
+              <Heading size="md" mb={4}>Produtos Mais Vendidos</Heading>
+              <Table variant="simple">
+                <Thead>
+                  <Tr>
+                    <Th>Produto</Th>
+                    <Th isNumeric>Quantidade</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {topSellingProducts.map((product, index) => (
+                    <Tr key={index}>
+                      <Td>{product.name}</Td>
+                      <Td isNumeric>{product.total}</Td>
                     </Tr>
-                  </Thead>
-                  <Tbody>
-                      {inactiveCustomers.slice(0, 5).map((customer) => (
-                        <Tr key={customer.customerPhone}>
-                          <Td>{customer.customerName}</Td>
-                          <Td>{formatCurrency(customer.lastOrderTotal)}</Td>
-                          <Td>
-                            <Badge colorScheme={(customer.daysSinceLastOrder ?? 0) > 30 ? "red" : "orange"}>
-                              {customer.daysSinceLastOrder ?? 0} dias
-                          </Badge>
-                        </Td>
-                          <Td>
-                            <Button
-                              size="sm"
-                              colorScheme="whatsapp"
-                              leftIcon={<ChatIcon />}
-                              onClick={() => handleOpenMarketingModal(customer)}
-                            >
-                              WhatsApp
-                            </Button>
-                          </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-                )}
-              </Box>
-            </SimpleGrid>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
 
-            {/* Acesso Rápido */}
-            <Heading size="md" mb={4}>Acesso Rápido</Heading>
-            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }} gap={6}>
-              <Box p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
-                <Flex direction="column" align="center">
-                  <ViewIcon boxSize={8} mb={4} color="blue.500" />
-                  <Heading size="sm" mb={2}>Categorias</Heading>
-                  <Text textAlign="center" mb={4}>Gerencie as categorias</Text>
-                  <Button as={RouterLink} to="/categories" colorScheme="blue" size="sm">
-                    Acessar
-                  </Button>
+            <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm">
+              <Heading size="md" mb={4}>
+                <Flex align="center">
+                  <WarningIcon color="orange.500" mr={2} />
+                  Clientes Inativos
                 </Flex>
-              </Box>
-
-              <Box p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
-                <Flex direction="column" align="center">
-                  <StarIcon boxSize={8} mb={4} color="blue.500" />
-                  <Heading size="sm" mb={2}>Produtos</Heading>
-                  <Text textAlign="center" mb={4}>Gerencie os produtos</Text>
-                  <Button as={RouterLink} to="/products" colorScheme="blue" size="sm">
-                    Acessar
-                  </Button>
-                </Flex>
-              </Box>
-
-              <Box p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
-                <Flex direction="column" align="center">
-                  <TimeIcon boxSize={8} mb={4} color="blue.500" />
-                  <Heading size="sm" mb={2}>Pedidos</Heading>
-                  <Text textAlign="center" mb={4}>Gerencie os pedidos</Text>
-                  <Button as={RouterLink} to="/orders" colorScheme="blue" size="sm">
-                    Acessar
-                  </Button>
-                </Flex>
-              </Box>
-            </Grid>
-
-            {/* Tabela de Pedidos Pendentes (se existirem) */}
-            {pendingOrders.length > 0 && (
-              <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm" mb={8}>
-                <Flex justifyContent="space-between" alignItems="center" mb={4}>
-                  <Heading size="md">
-                    <Flex align="center">
-                      <Box color="red.500" mr={2}>
-                        <BellIcon />
-                      </Box>
-                      {pendingOrders.some(order => order.status === 'preparing' || order.status === OrderStatus.PREPARING)
-                        ? `Pedidos em Produção (${pendingOrders.filter(order => !order.isSimulated && !order.id.startsWith('sim-')).length})`
-                        : `Pedidos Pendentes (${pendingOrders.filter(order => !order.isSimulated && !order.id.startsWith('sim-')).length})`
-                      }
-                    </Flex>
-                  </Heading>
-                </Flex>
-                
+              </Heading>
+              {inactiveCustomers.length === 0 ? (
+                <Text color="gray.500" textAlign="center" py={4}>
+                  Não há clientes inativos no momento. Todos os seus clientes fizeram pedidos nos últimos 7 dias!
+                </Text>
+              ) : (
                 <Table variant="simple" w="100%">
-                  <Thead>
-                    <Tr>
-                      <Th>ID</Th>
-                      <Th>Cliente</Th>
-                      <Th>Total</Th>
-                      <Th>Status</Th>
-                      <Th>Hora</Th>
-                      <Th>Ações</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {pendingOrders.filter(order => !order.isSimulated && !order.id.startsWith('sim-')).map((order) => (
-                      <Tr key={order.id}>
-                        <Td>{order.id.substring(0, 8)}...</Td>
-                        <Td>{order.customerName}</Td>
-                        <Td>{formatCurrency(Number(order.total) || 0)}</Td>
+                <Thead>
+                  <Tr>
+                    <Th>Cliente</Th>
+                      <Th>Último Pedido</Th>
+                      <Th>Dias Inativo</Th>
+                      <Th>Ação</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                    {inactiveCustomers.slice(0, 5).map((customer) => (
+                      <Tr key={customer.customerPhone}>
+                        <Td>{customer.customerName}</Td>
+                        <Td>{formatCurrency(customer.lastOrderTotal)}</Td>
                         <Td>
-                          <Badge colorScheme={getStatusColor(order.status)}>
-                            {order.status === 'preparing' || order.status === OrderStatus.PREPARING 
-                              ? 'Em Produção' 
-                              : order.status}
-                          </Badge>
-                        </Td>
-                        <Td>{new Date(order.createdAt).toLocaleTimeString()}</Td>
+                          <Badge colorScheme={(customer.daysSinceLastOrder ?? 0) > 30 ? "red" : "orange"}>
+                            {customer.daysSinceLastOrder ?? 0} dias
+                        </Badge>
+                      </Td>
                         <Td>
-                          <Button 
-                            size="sm" 
-                            colorScheme="blue" 
-                            onClick={() => handleViewOrderDetails(order)}
+                          <Button
+                            size="sm"
+                            colorScheme="whatsapp"
+                            leftIcon={<ChatIcon />}
+                            onClick={() => handleOpenMarketingModal(customer)}
                           >
-                            Ver Detalhes
+                            WhatsApp
                           </Button>
                         </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-            )}
-          </>
-        )}
-      </Container>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+              )}
+            </Box>
+          </SimpleGrid>
+
+          {/* Acesso Rápido */}
+          <Heading size="md" mb={4}>Acesso Rápido</Heading>
+          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" }} gap={6}>
+            <Box p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
+              <Flex direction="column" align="center">
+                <ViewIcon boxSize={8} mb={4} color="blue.500" />
+                <Heading size="sm" mb={2}>Categorias</Heading>
+                <Text textAlign="center" mb={4}>Gerencie as categorias</Text>
+                <Button as={RouterLink} to="/categories" colorScheme="blue" size="sm">
+                  Acessar
+                </Button>
+              </Flex>
+            </Box>
+
+            <Box p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
+              <Flex direction="column" align="center">
+                <StarIcon boxSize={8} mb={4} color="blue.500" />
+                <Heading size="sm" mb={2}>Produtos</Heading>
+                <Text textAlign="center" mb={4}>Gerencie os produtos</Text>
+                <Button as={RouterLink} to="/products" colorScheme="blue" size="sm">
+                  Acessar
+                </Button>
+              </Flex>
+            </Box>
+
+            <Box p={6} bg={bgColor} borderRadius="lg" boxShadow="sm">
+              <Flex direction="column" align="center">
+                <TimeIcon boxSize={8} mb={4} color="blue.500" />
+                <Heading size="sm" mb={2}>Pedidos</Heading>
+                <Text textAlign="center" mb={4}>Gerencie os pedidos</Text>
+                <Button as={RouterLink} to="/orders" colorScheme="blue" size="sm">
+                  Acessar
+                </Button>
+              </Flex>
+            </Box>
+          </Grid>
+
+          {/* Tabela de Pedidos Pendentes (se existirem) */}
+          {pendingOrders.length > 0 && (
+            <Box bg={bgColor} p={6} borderRadius="lg" boxShadow="sm" mb={8}>
+              <Flex justifyContent="space-between" alignItems="center" mb={4}>
+                <Heading size="md">
+                  <Flex align="center">
+                    <Box color="red.500" mr={2}>
+                      <BellIcon />
+                    </Box>
+                    {pendingOrders.some(order => order.status === 'preparing' || order.status === OrderStatus.PREPARING)
+                      ? `Pedidos em Produção (${pendingOrders.filter(order => !order.isSimulated && !order.id.startsWith('sim-')).length})`
+                      : `Pedidos Pendentes (${pendingOrders.filter(order => !order.isSimulated && !order.id.startsWith('sim-')).length})`
+                    }
+                  </Flex>
+                </Heading>
+              </Flex>
+              
+              <Table variant="simple" w="100%">
+                <Thead>
+                  <Tr>
+                    <Th>ID</Th>
+                    <Th>Cliente</Th>
+                    <Th>Total</Th>
+                    <Th>Status</Th>
+                    <Th>Hora</Th>
+                    <Th>Ações</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {pendingOrders.filter(order => !order.isSimulated && !order.id.startsWith('sim-')).map((order) => (
+                    <Tr key={order.id}>
+                      <Td>{order.id.substring(0, 8)}...</Td>
+                      <Td>{order.customerName}</Td>
+                      <Td>
+                        {order.couponCode && order.discountValue > 0 ? (
+                          <Flex direction="column">
+                            <Text textDecoration="line-through" fontSize="xs" color="gray.500">
+                              {formatCurrency(Number(order.subtotal) || Number(order.total) + Number(order.discountValue) || 0)}
+                            </Text>
+                            <Text fontWeight="bold">
+                              {formatCurrency(Number(order.total) || 0)}
+                            </Text>
+                          </Flex>
+                        ) : (
+                          formatCurrency(Number(order.total) || 0)
+                        )}
+                      </Td>
+                      <Td>
+                        <Badge colorScheme={getStatusColor(order.status)}>
+                          {order.status === 'preparing' || order.status === OrderStatus.PREPARING 
+                            ? 'Em Produção' 
+                            : order.status}
+                        </Badge>
+                      </Td>
+                      <Td>{new Date(order.createdAt).toLocaleTimeString()}</Td>
+                      <Td>
+                        <Button 
+                          size="sm" 
+                          colorScheme="blue" 
+                          onClick={() => handleViewOrderDetails(order)}
+                        >
+                          Ver Detalhes
+                        </Button>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            </Box>
+          )}
+        </>
+      )}
       
       {/* Modal para compartilhar o link do cardápio */}
       <Modal isOpen={isOpen} onClose={onClose}>
@@ -1544,10 +1726,29 @@ const Dashboard: React.FC = () => {
                     ⚠️ NOVO PEDIDO PENDENTE
                   </Text>
                 )}
-                Pedido #{currentOrder?.id}
+                Pedido #{currentOrder?.id?.substring(0, 8)}
+                {currentOrder && (
+                  <Text fontSize="sm" fontWeight="normal" mt={1}>
+                    {new Date(currentOrder.createdAt).toLocaleString()}
+                  </Text>
+                )}
+                {currentOrder && currentOrder.couponCode && currentOrder.discountValue > 0 && (
+                  <Text fontSize="sm" fontWeight="normal" color="green.500" mt={1}>
+                    Cupom aplicado: {currentOrder.couponCode} (-{formatCurrency(Number(currentOrder.discountValue) || 0)})
+                  </Text>
+                )}
               </Box>
-              <Badge ml={2} colorScheme={getStatusColor(currentOrder?.status || 'pending')}>
-                {currentOrder?.status || 'Pendente'}
+              <Badge 
+                ml={2} 
+                colorScheme={getStatusColor(currentOrder?.status || 'pending')}
+                fontSize="md"
+                px={3}
+                py={1}
+                borderRadius="md"
+              >
+                {currentOrder?.status === 'preparing' || currentOrder?.status === OrderStatus.PREPARING 
+                  ? 'Em Produção' 
+                  : currentOrder?.status || 'Pendente'}
               </Badge>
             </Flex>
           </ModalHeader>
@@ -1588,97 +1789,104 @@ const Dashboard: React.FC = () => {
                 </Box>
                 
                 <Box mb={4}>
-                  <Text fontWeight="bold" mb={2}>Itens do Pedido</Text>
+                  <Text fontWeight="bold">Itens do Pedido</Text>
                   <Table variant="simple" size="sm">
                     <Thead>
                       <Tr>
                         <Th>Item</Th>
                         <Th isNumeric>Qtd</Th>
-                        <Th isNumeric>Valor</Th>
+                        <Th isNumeric>Preço</Th>
                         <Th isNumeric>Total</Th>
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {Array.isArray(currentOrder?.items) ? (
-                        currentOrder.items.map((item: any, index: number) => {
-                          // Determinar o nome do produto e seu preço
-                          const productName = item.name || `Produto #${item.id || item.productId}`;
-                          const productPrice = typeof item.price === 'number' ? item.price : 
-                                              (typeof item.price === 'string' ? parseFloat(item.price) : 25.00);
-                          const itemQuantity = typeof item.quantity === 'number' ? item.quantity : 
-                                              (typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : 1);
-                          const itemTotal = typeof item.total === 'number' ? item.total : 
-                                          (typeof item.total === 'string' ? parseFloat(item.total) : productPrice * itemQuantity);
-                          
-                          return (
-                            <Tr key={index}>
-                              <Td>
-                                {productName}
-                                {item.notes && (
-                                  <Text fontSize="xs" color="gray.500" mt={1}>
-                                    Obs: {item.notes}
-                                  </Text>
-                                )}
-                              </Td>
-                              <Td isNumeric>{itemQuantity}</Td>
-                              <Td isNumeric>{formatCurrency(productPrice)}</Td>
-                              <Td isNumeric>{formatCurrency(itemTotal)}</Td>
-                            </Tr>
-                          );
-                        })
+                      {currentOrder.orderItems ? (
+                        (() => {
+                          try {
+                            // Tentar parsear os itens se estiverem em formato de string
+                            const items = typeof currentOrder.orderItems === 'string' 
+                              ? JSON.parse(currentOrder.orderItems) 
+                              : currentOrder.orderItems;
+                            
+                            return items.map((item: any, index: number) => (
+                              <Tr key={index}>
+                                <Td>
+                                  {item.name || item.product?.name || 'Item sem nome'}
+                                  {item.notes && (
+                                    <Text fontSize="xs" color="gray.500" mt={1}>
+                                      Obs: {item.notes}
+                                    </Text>
+                                  )}
+                                  {/* Exibir complementos se existirem */}
+                                  {item.additionalOptions && Object.keys(item.additionalOptions).length > 0 && (
+                                    <Box mt={1} pl={2} borderLeftWidth="1px" borderLeftColor="gray.300">
+                                      <Text fontSize="xs" fontWeight="medium" color="gray.600">
+                                        Complementos:
+                                      </Text>
+                                      {Object.entries(item.additionalOptions).map(([groupName, value], idx) => {
+                                        // Verificar o tipo de valor e formatar adequadamente
+                                        let displayText = '';
+                                        let priceText = '';
+                                        
+                                        if (typeof value === 'object' && value !== null && 'name' in value) {
+                                          displayText = `${groupName}: ${value.name}`;
+                                          if ('price' in value && typeof value.price === 'number' && value.price > 0) {
+                                            priceText = `+R$ ${Number(value.price).toFixed(2)}`;
+                                          }
+                                        } else {
+                                          displayText = `${groupName}: ${typeof value === 'object' ? JSON.stringify(value) : String(value)}`;
+                                        }
+                                        
+                                        return (
+                                          <Flex key={idx} fontSize="xs" color="gray.600" justify="space-between">
+                                            <Text>{displayText}</Text>
+                                            {priceText && <Text color="green.600">{priceText}</Text>}
+                                          </Flex>
+                                        );
+                                      })}
+                                    </Box>
+                                  )}
+                                </Td>
+                                <Td isNumeric>{item.quantity}</Td>
+                                <Td isNumeric>{formatCurrency(item.unitPrice || item.price || 0)}</Td>
+                                <Td isNumeric>{formatCurrency((item.totalUnitPrice || (item.unitPrice || item.price || 0)) * item.quantity)}</Td>
+                              </Tr>
+                            ));
+                          } catch (e) {
+                            console.error("Erro ao parsear itens do pedido:", e);
+                            return (
+                              <Tr>
+                                <Td colSpan={4}>Erro ao carregar itens do pedido</Td>
+                              </Tr>
+                            );
+                          }
+                        })()
                       ) : (
-                        // Se não tiver um array de itens, mas tiver notes JSON, tentar parsear
-                        currentOrder?.notes && typeof currentOrder.notes === 'string' && currentOrder.notes.startsWith('[') ? (
-                          (() => {
-                            try {
-                              // Tentar parsear os itens do campo notes
-                              const parsedItems = JSON.parse(currentOrder.notes);
-                              return parsedItems.map((item: any, index: number) => {
-                                // Informações do item
-                                const productName = item.name || `Produto #${item.id || item.productId}`;
-                                const productPrice = typeof item.price === 'number' ? item.price : 
-                                                    (typeof item.price === 'string' ? parseFloat(item.price) : 25.00);
-                                const itemQuantity = typeof item.quantity === 'number' ? item.quantity : 
-                                                    (typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : 1);
-                                const itemTotal = typeof item.total === 'number' ? item.total : 
-                                                (typeof item.total === 'string' ? parseFloat(item.total) : productPrice * itemQuantity);
-                                
-                                return (
-                                  <Tr key={index}>
-                                    <Td>
-                                      {productName}
-                                      {item.notes && (
-                                        <Text fontSize="xs" color="gray.500" mt={1}>
-                                          Obs: {item.notes}
-                                        </Text>
-                                      )}
-                                    </Td>
-                                    <Td isNumeric>{itemQuantity}</Td>
-                                    <Td isNumeric>{formatCurrency(productPrice)}</Td>
-                                    <Td isNumeric>{formatCurrency(itemTotal)}</Td>
-                                  </Tr>
-                                );
-                              });
-                            } catch (e) {
-                              console.error("Erro ao parsear itens do pedido:", e);
-                              return (
-                                <Tr>
-                                  <Td colSpan={4}>Erro ao carregar itens do pedido</Td>
-                                </Tr>
-                              );
-                            }
-                          })()
-                        ) : (
-                          <Tr>
-                            <Td colSpan={4}>Sem itens disponíveis</Td>
-                          </Tr>
-                        )
+                        <Tr>
+                          <Td colSpan={4}>Sem itens disponíveis</Td>
+                        </Tr>
                       )}
                     </Tbody>
                     <Tfoot>
+                      {/* Sempre mostrar o subtotal se houver desconto */}
+                      {currentOrder.couponCode && currentOrder.discountValue > 0 && (
+                        <Tr>
+                          <Th colSpan={3} textAlign="right">Subtotal</Th>
+                          <Th isNumeric>{formatCurrency(Number(currentOrder.subtotal) || Number(currentOrder.total) + Number(currentOrder.discountValue) || 0)}</Th>
+                        </Tr>
+                      )}
+                      {/* Mostrar linha de desconto se houver cupom aplicado */}
+                      {currentOrder.couponCode && currentOrder.discountValue > 0 && (
+                        <Tr>
+                          <Th colSpan={3} textAlign="right" color="green.500">
+                            Desconto (Cupom: {currentOrder.couponCode})
+                          </Th>
+                          <Th isNumeric color="green.500">-{formatCurrency(Number(currentOrder.discountValue) || 0)}</Th>
+                        </Tr>
+                      )}
                       <Tr>
                         <Th colSpan={3} textAlign="right">Total</Th>
-                        <Th isNumeric>{formatCurrency(currentOrder?.total || 0)}</Th>
+                        <Th isNumeric>{formatCurrency(Number(currentOrder.total) || 0)}</Th>
                       </Tr>
                     </Tfoot>
                   </Table>
@@ -1687,14 +1895,70 @@ const Dashboard: React.FC = () => {
                 {currentOrder.notes && (
                   <Box mb={4}>
                     <Text fontWeight="bold">Observações</Text>
-                    <Text>{currentOrder.notes}</Text>
+                    <Text>
+                      {(() => {
+                        // Verificar se as notas são uma string JSON
+                        if (typeof currentOrder.notes === 'string') {
+                          try {
+                            // Tentar parsear como JSON
+                            const parsedNotes = JSON.parse(currentOrder.notes);
+                            
+                            // Se for um array, provavelmente são itens do pedido
+                            if (Array.isArray(parsedNotes)) {
+                              // Verificar se são itens do pedido
+                              if (parsedNotes.length > 0 && parsedNotes[0].name) {
+                                return 'Sem observações específicas';
+                              }
+                              return parsedNotes.join(', ');
+                            }
+                            
+                            // Se for um objeto, tentar exibir de forma legível
+                            if (typeof parsedNotes === 'object' && parsedNotes !== null) {
+                              // Verificar se é um objeto de observações
+                              if (parsedNotes.notes) {
+                                return parsedNotes.notes;
+                              }
+                              
+                              // Caso contrário, exibir as propriedades do objeto
+                              return Object.entries(parsedNotes)
+                                .filter(([key]) => key !== 'id' && key !== 'price' && key !== 'quantity')
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join(', ');
+                            }
+                            
+                            // Se não for array nem objeto, exibir como texto
+                            return parsedNotes.toString();
+                          } catch (e) {
+                            // Se não for JSON válido, exibir como texto normal
+                            return currentOrder.notes;
+                          }
+                        }
+                        
+                        // Se não for string, exibir mensagem padrão
+                        return 'Sem observações';
+                      })()}
+                    </Text>
                   </Box>
                 )}
                 
                 <Flex justify="flex-end" borderTopWidth="1px" pt={4}>
-                  <Text fontWeight="bold" fontSize="lg">
-                    Total: {formatCurrency(currentOrder.total || 0)}
-                  </Text>
+                  {currentOrder.couponCode && currentOrder.discountValue > 0 ? (
+                    <Box textAlign="right">
+                      <Text fontSize="sm">
+                        Subtotal: {formatCurrency(Number(currentOrder.subtotal) || Number(currentOrder.total) + Number(currentOrder.discountValue) || 0)}
+                      </Text>
+                      <Text fontSize="sm" color="green.500">
+                        Desconto: -{formatCurrency(Number(currentOrder.discountValue) || 0)}
+                      </Text>
+                      <Text fontWeight="bold" fontSize="lg">
+                        Total: {formatCurrency(Number(currentOrder.total) || 0)}
+                      </Text>
+                    </Box>
+                  ) : (
+                    <Text fontWeight="bold" fontSize="lg">
+                      Total: {formatCurrency(Number(currentOrder.total) || 0)}
+                    </Text>
+                  )}
                 </Flex>
               </Box>
             ) : (
@@ -1873,7 +2137,7 @@ const Dashboard: React.FC = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Layout>
+    </Container>
   );
 };
 

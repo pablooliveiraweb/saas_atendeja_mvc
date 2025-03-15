@@ -1,5 +1,6 @@
 import { User } from '../../users/entities/user.entity';
 import { Order } from '../../orders/entities/order.entity';
+import { Coupon } from '../../coupons/entities/coupon.entity';
 export declare enum RestaurantStatus {
     ACTIVE = "active",
     INACTIVE = "inactive",
@@ -42,6 +43,7 @@ export declare class Restaurant {
     evolutionApiInstanceConnected: boolean;
     owner: User;
     orders: Order[];
+    coupons: Coupon[];
     createdAt: Date;
     updatedAt: Date;
     baseUrl: string;

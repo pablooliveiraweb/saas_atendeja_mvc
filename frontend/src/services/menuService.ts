@@ -66,12 +66,14 @@ export interface CustomerOrderData {
     productId: string;
     quantity: number;
     notes?: string;
+    additionalOptions?: any;
   }[];
   deliveryMethod: 'pickup' | 'delivery' | 'dineIn';
   paymentMethod: 'money' | 'pix' | 'credit' | 'debit';
   changeFor?: number;
   deliveryAddress?: string;
   notes?: string;
+  couponCode?: string;
 }
 
 export interface OrderResponse {
@@ -140,6 +142,40 @@ export const menuService = {
         const image = product.image || product.Product_image;
         const fullImageUrl = image ? getFullImageUrl(image) : undefined;
         
+        // Processar additionalOptions
+        let processedAdditionalOptions;
+        try {
+          if (product.additionalOptions) {
+            // Se for string, tentar fazer parse
+            if (typeof product.additionalOptions === 'string') {
+              console.log('additionalOptions é string, tentando parse:', product.additionalOptions);
+              processedAdditionalOptions = JSON.parse(product.additionalOptions);
+            } else {
+              // Se não for string, usar diretamente
+              processedAdditionalOptions = product.additionalOptions;
+            }
+            
+            // Garantir que é um array
+            if (!Array.isArray(processedAdditionalOptions)) {
+              processedAdditionalOptions = [processedAdditionalOptions];
+            }
+            
+            // Validar estrutura dos grupos
+            processedAdditionalOptions = processedAdditionalOptions.filter(group => 
+              group && 
+              typeof group === 'object' && 
+              'name' in group && 
+              'options' in group && 
+              Array.isArray(group.options)
+            );
+            
+            console.log('additionalOptions processado:', processedAdditionalOptions);
+          }
+        } catch (error) {
+          console.error('Erro ao processar additionalOptions:', error);
+          processedAdditionalOptions = [];
+        }
+        
         // Criar o produto processado mantendo a estrutura esperada pelo frontend
         return {
           id: product.id || product.Product_id,
@@ -151,13 +187,17 @@ export const menuService = {
           restaurantId: restaurantId,
           isActive: product.isActive || product.Product_isActive !== false,
           isAvailable: product.isAvailable || product.Product_isAvailable !== false,
-          order: product.order || product.Product_order || 0
+          order: product.order || product.Product_order || 0,
+          additionalOptions: processedAdditionalOptions || []
         };
       });
       
-      console.log('Produtos processados com categoryId e URLs completas:', processedProducts.map(p => 
-        `${p.name} → categoria: ${p.categoryId}, imagem: ${p.image}`
-      ));
+      console.log('Produtos processados com categoryId e URLs completas:', processedProducts.map(p => ({
+        name: p.name,
+        categoria: p.categoryId,
+        imagem: p.image,
+        additionalOptions: p.additionalOptions
+      })));
       
       return processedProducts;
     } catch (error) {
@@ -184,6 +224,40 @@ export const menuService = {
         const image = product.image || product.Product_image;
         const fullImageUrl = image ? getFullImageUrl(image) : undefined;
         
+        // Processar additionalOptions
+        let processedAdditionalOptions;
+        try {
+          if (product.additionalOptions) {
+            // Se for string, tentar fazer parse
+            if (typeof product.additionalOptions === 'string') {
+              console.log('additionalOptions é string, tentando parse:', product.additionalOptions);
+              processedAdditionalOptions = JSON.parse(product.additionalOptions);
+            } else {
+              // Se não for string, usar diretamente
+              processedAdditionalOptions = product.additionalOptions;
+            }
+            
+            // Garantir que é um array
+            if (!Array.isArray(processedAdditionalOptions)) {
+              processedAdditionalOptions = [processedAdditionalOptions];
+            }
+            
+            // Validar estrutura dos grupos
+            processedAdditionalOptions = processedAdditionalOptions.filter(group => 
+              group && 
+              typeof group === 'object' && 
+              'name' in group && 
+              'options' in group && 
+              Array.isArray(group.options)
+            );
+            
+            console.log('additionalOptions processado:', processedAdditionalOptions);
+          }
+        } catch (error) {
+          console.error('Erro ao processar additionalOptions:', error);
+          processedAdditionalOptions = [];
+        }
+        
         return {
           id: product.id || product.Product_id,
           name: product.name || product.Product_name,
@@ -194,9 +268,17 @@ export const menuService = {
           restaurantId: restaurantId,
           isActive: product.isActive || product.Product_isActive !== false,
           isAvailable: product.isAvailable || product.Product_isAvailable !== false,
-          order: product.order || product.Product_order || 0
+          order: product.order || product.Product_order || 0,
+          additionalOptions: processedAdditionalOptions || []
         };
       });
+      
+      console.log('Produtos processados:', processedProducts.map(p => ({
+        name: p.name,
+        categoria: p.categoryId,
+        imagem: p.image,
+        additionalOptions: p.additionalOptions
+      })));
       
       return processedProducts;
     } catch (error) {
@@ -250,7 +332,8 @@ export const menuService = {
           notes: item.notes,
           price: price,
           total: itemTotal,
-          name: product ? product.name : `Produto #${item.productId}` // Nome real ou padrão
+          name: product ? product.name : `Produto #${item.productId}`, // Nome real ou padrão
+          additionalOptions: item.additionalOptions || {} // Incluir os complementos
         };
       });
       

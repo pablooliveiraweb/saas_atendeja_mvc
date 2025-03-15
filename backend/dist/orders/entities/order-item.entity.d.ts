@@ -8,7 +8,9 @@ export declare class OrderItem {
     additionalOptions: string;
     notes: string;
     order: Order;
+    orderId: string;
     product: Product;
+    productId: string;
     createdAt: Date;
     updatedAt: Date;
 }

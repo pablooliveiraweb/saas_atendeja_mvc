@@ -29,8 +29,14 @@ export class ProductsService {
       );
     }
 
+    // Converter additionalOptions para JSON string se existir
+    const dtoToSave = { ...createProductDto };
+    if (dtoToSave.additionalOptions) {
+      dtoToSave.additionalOptions = JSON.stringify(dtoToSave.additionalOptions);
+    }
+
     const product = this.productsRepository.create({
-      ...createProductDto,
+      ...dtoToSave,
       category,
       restaurant: { id: restaurantId },
     });
@@ -39,7 +45,7 @@ export class ProductsService {
   }
 
   async findAll(restaurantId: string) {
-    return this.productsRepository.find({
+    const products = await this.productsRepository.find({
       where: { restaurant: { id: restaurantId } },
       relations: ['category'],
       order: {
@@ -47,10 +53,31 @@ export class ProductsService {
         order: 'ASC',
       } as any,
     });
+
+    // Converter additionalOptions de JSON string para objeto
+    return products.map(product => {
+      const transformedProduct = { ...product } as any;
+      // Verificar se additionalOptions existe e não está vazio
+      if (transformedProduct.additionalOptions && 
+          typeof transformedProduct.additionalOptions === 'string' &&
+          transformedProduct.additionalOptions.trim() !== '') {
+        try {
+          transformedProduct.additionalOptions = JSON.parse(transformedProduct.additionalOptions as string);
+        } catch (error) {
+          console.error('Erro ao parsear additionalOptions:', error);
+          // Em caso de erro no parse, definir como array vazio
+          transformedProduct.additionalOptions = [];
+        }
+      } else {
+        // Se não tiver additionalOptions ou for uma string vazia, definir como array vazio
+        transformedProduct.additionalOptions = [];
+      }
+      return transformedProduct;
+    });
   }
 
   async findByCategory(categoryId: string, restaurantId: string) {
-    return this.productsRepository.find({
+    const products = await this.productsRepository.find({
       where: {
         category: { id: categoryId },
         restaurant: { id: restaurantId },
@@ -58,6 +85,27 @@ export class ProductsService {
       order: {
         order: 'ASC',
       } as any,
+    });
+
+    // Converter additionalOptions de JSON string para objeto
+    return products.map(product => {
+      const transformedProduct = { ...product } as any;
+      // Verificar se additionalOptions existe e não está vazio
+      if (transformedProduct.additionalOptions && 
+          typeof transformedProduct.additionalOptions === 'string' &&
+          transformedProduct.additionalOptions.trim() !== '') {
+        try {
+          transformedProduct.additionalOptions = JSON.parse(transformedProduct.additionalOptions as string);
+        } catch (error) {
+          console.error('Erro ao parsear additionalOptions:', error);
+          // Em caso de erro no parse, definir como array vazio
+          transformedProduct.additionalOptions = [];
+        }
+      } else {
+        // Se não tiver additionalOptions ou for uma string vazia, definir como array vazio
+        transformedProduct.additionalOptions = [];
+      }
+      return transformedProduct;
     });
   }
 
@@ -71,7 +119,25 @@ export class ProductsService {
       throw new NotFoundException(`Produto com ID ${id} não encontrado`);
     }
 
-    return product;
+    // Converter additionalOptions de JSON string para objeto
+    const transformedProduct = { ...product } as any;
+    // Verificar se additionalOptions existe e não está vazio
+    if (transformedProduct.additionalOptions && 
+        typeof transformedProduct.additionalOptions === 'string' &&
+        transformedProduct.additionalOptions.trim() !== '') {
+      try {
+        transformedProduct.additionalOptions = JSON.parse(transformedProduct.additionalOptions as string);
+      } catch (error) {
+        console.error('Erro ao parsear additionalOptions:', error);
+        // Em caso de erro no parse, definir como array vazio
+        transformedProduct.additionalOptions = [];
+      }
+    } else {
+      // Se não tiver additionalOptions ou for uma string vazia, definir como array vazio
+      transformedProduct.additionalOptions = [];
+    }
+
+    return transformedProduct;
   }
 
   async update(
@@ -99,8 +165,39 @@ export class ProductsService {
       delete updateProductDto.categoryId;
     }
 
-    Object.assign(product, updateProductDto);
-    return this.productsRepository.save(product);
+    // Converter additionalOptions para JSON string se existir
+    const dtoToSave = { ...updateProductDto };
+    if (dtoToSave.additionalOptions) {
+      dtoToSave.additionalOptions = JSON.stringify(dtoToSave.additionalOptions);
+    }
+
+    // Remover a versão parseada de additionalOptions antes de salvar
+    const productToSave = { ...product } as any;
+    if (productToSave.additionalOptions && typeof productToSave.additionalOptions !== 'string') {
+      delete productToSave.additionalOptions;
+    }
+
+    Object.assign(productToSave, dtoToSave);
+    const savedProduct = await this.productsRepository.save(productToSave);
+
+    // Retornar o produto com additionalOptions como objeto
+    const result = { ...savedProduct } as any;
+    
+    // Verificar se additionalOptions existe e não está vazio
+    if (result.additionalOptions && 
+        typeof result.additionalOptions === 'string' &&
+        result.additionalOptions.trim() !== '') {
+      try {
+        result.additionalOptions = JSON.parse(result.additionalOptions as string);
+      } catch (error) {
+        console.error('Erro ao parsear additionalOptions:', error);
+        result.additionalOptions = [];
+      }
+    } else {
+      result.additionalOptions = [];
+    }
+    
+    return result;
   }
 
   async remove(id: string, restaurantId: string) {

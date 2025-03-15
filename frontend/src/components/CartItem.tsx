@@ -9,107 +9,155 @@ import {
   VStack,
   Divider,
   Badge,
-  Button
+  Button,
+  Textarea
 } from '@chakra-ui/react';
 import { AddIcon, MinusIcon, DeleteIcon } from '@chakra-ui/icons';
-import { Product } from '../types/product';
+import { Product, SelectedOption } from '../types/product';
 import { formatCurrency } from '../utils/formatters';
 
 interface CartItemProps {
   product: Product;
   quantity: number;
   notes?: string;
+  selectedOptions?: SelectedOption[];
   onIncrement: () => void;
   onDecrement: () => void;
   onRemove: () => void;
+  onNotesChange?: (notes: string) => void;
 }
 
 const CartItem: React.FC<CartItemProps> = ({
   product,
   quantity,
   notes,
+  selectedOptions,
   onIncrement,
   onDecrement,
-  onRemove
+  onRemove,
+  onNotesChange
 }) => {
-  // Cores independentes do tema do dashboard
-  const textColor = '#333333';
-  const secondaryTextColor = '#666666';
-  const accentColor = '#3182ce';
-  
+  // Calcular o preço unitário com complementos
+  const calculateItemPrice = () => {
+    let basePrice = product.price;
+    
+    // Adicionar preço dos complementos selecionados
+    if (selectedOptions && selectedOptions.length > 0) {
+      const optionsPrice = selectedOptions.reduce((sum, opt) => sum + opt.option.price, 0);
+      basePrice += optionsPrice;
+    }
+    
+    return basePrice;
+  };
+
+  const unitPrice = calculateItemPrice();
+  const totalPrice = unitPrice * quantity;
+
   return (
-    <Box py={3}>
-      <Flex>
+    <Box
+      p={3}
+      borderWidth="1px"
+      borderRadius="md"
+      borderColor="gray.200"
+      bg="white"
+      shadow="sm"
+      width="100%"
+    >
+      <Flex justifyContent="space-between" alignItems="flex-start">
+        {/* Adicionar imagem do produto */}
         {product.image && (
-          <Image
-            src={product.image}
-            alt={product.name}
-            boxSize="70px"
-            objectFit="cover"
-            fallbackSrc="/product-placeholder.png"
-            borderRadius="md"
-            mr={3}
-          />
+          <Box mr={3} width="60px" height="60px" flexShrink={0}>
+            <Image 
+              src={product.image} 
+              alt={product.name} 
+              objectFit="cover" 
+              width="100%" 
+              height="100%" 
+              borderRadius="md"
+            />
+          </Box>
         )}
         
-        <VStack align="start" spacing={1} flex="1">
-          <Flex w="100%" justify="space-between" align="center">
-            <Text fontWeight="bold" fontSize="md" color={textColor}>
-              {product.name}
-            </Text>
-            
-            <IconButton
-              aria-label="Remover item"
-              icon={<DeleteIcon />}
-              size="sm"
-              colorScheme="red"
-              variant="ghost"
-              onClick={onRemove}
-            />
-          </Flex>
+        <VStack align="stretch" spacing={1} flex="1">
+          <Text fontWeight="bold">{product.name}</Text>
           
-          <Text fontSize="sm" color={accentColor} fontWeight="bold">
-            {formatCurrency(product.price)} cada
+          <Text fontSize="sm" color="gray.500">
+            {formatCurrency(product.price)}
           </Text>
           
+          {/* Mostrar os complementos selecionados */}
+          {selectedOptions && selectedOptions.length > 0 && (
+            <Box mt={1} pl={2} borderLeftWidth="1px" borderLeftColor="gray.300">
+              <Flex fontSize="xs" color="gray.600" mb={1} wrap="wrap">
+                <Text fontWeight="medium" mr={1}>Complementos:</Text>
+                {selectedOptions.map((option, index) => (
+                  <Text key={index} fontSize="xs" mb={0.5}>
+                    {option.option.name}
+                    {option.option.price > 0 && ` (+${formatCurrency(option.option.price)})`}
+                    {index < selectedOptions.length - 1 ? ', ' : ''}
+                  </Text>
+                ))}
+              </Flex>
+            </Box>
+          )}
+          
+          {/* Mostrar as notas se houver */}
           {notes && (
-            <Badge colorScheme="gray" fontSize="xs" mt={1}>
-              {notes}
-            </Badge>
+            <Text fontSize="xs" fontStyle="italic" color="gray.600" mt={1}>
+              Obs: {notes}
+            </Text>
           )}
         </VStack>
+        
+        <Text fontWeight="bold" minWidth="80px" textAlign="right">
+          {formatCurrency(totalPrice)}
+        </Text>
       </Flex>
       
-      <Flex mt={3} justify="space-between" align="center">
-        <HStack spacing={1} border="1px solid" borderColor="gray.200" borderRadius="md" p={1}>
+      <Divider my={2} />
+      
+      <Flex justifyContent="space-between">
+        <HStack>
           <IconButton
             aria-label="Diminuir quantidade"
             icon={<MinusIcon />}
             size="xs"
+            onClick={onDecrement}
             colorScheme="blue"
             variant="ghost"
-            isDisabled={quantity <= 1}
-            onClick={onDecrement}
           />
-          
-          <Text fontWeight="medium" mx={2} minW="20px" textAlign="center">
-            {quantity}
-          </Text>
-          
+          <Text fontWeight="medium">{quantity}</Text>
           <IconButton
             aria-label="Aumentar quantidade"
             icon={<AddIcon />}
             size="xs"
+            onClick={onIncrement}
             colorScheme="blue"
             variant="ghost"
-            onClick={onIncrement}
           />
         </HStack>
         
-        <Text fontWeight="bold" color={textColor}>
-          {formatCurrency(product.price * quantity)}
-        </Text>
+        <IconButton
+          aria-label="Remover item"
+          icon={<DeleteIcon />}
+          size="xs"
+          onClick={onRemove}
+          colorScheme="red"
+          variant="ghost"
+        />
       </Flex>
+      
+      {onNotesChange && (
+        <Box mt={2}>
+          <Textarea
+            placeholder="Alguma observação? Ex: sem cebola, etc."
+            size="sm"
+            value={notes || ''}
+            onChange={(e) => onNotesChange(e.target.value)}
+            rows={2}
+          />
+        </Box>
+      )}
     </Box>
   );
 };
